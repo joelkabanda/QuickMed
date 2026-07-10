@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'login_screen.dart';
+import 'package:quickmed/routes/index.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -16,12 +16,9 @@ class _SplashScreenState extends State<SplashScreen> {
     super.initState();
 
     Timer(const Duration(seconds: 3), () {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const LoginScreen(),
-        ),
-      );
+      // Navigate to login using route constants
+      // Using push replacement to prevent returning to splash
+      Navigator.of(context).pushReplacementNamed(AppRoutes.login);
     });
   }
 

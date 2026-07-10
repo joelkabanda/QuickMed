@@ -14,8 +14,6 @@ dependencies:
   firebase_auth: ^5.6.0
   cloud_firestore: ^5.6.0
 
-Save the file.
-
 dev_dependencies:
   flutter_test:
     sdk: flutter
