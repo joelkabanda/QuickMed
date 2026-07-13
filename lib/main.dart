@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+<<<<<<< HEAD
 void main() {
   runApp(const MyApp());
 }
@@ -119,4 +120,10 @@ class _MyHomePageState extends State<MyHomePage> {
       ),
     );
   }
+=======
+import 'app.dart';
+
+void main() {
+  runApp(const QuickMedApp());
+>>>>>>> c4e3bdba46f3774bf6c626a037b8307d68d12f94
 }

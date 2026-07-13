@@ -1,6 +1,11 @@
 {
+<<<<<<< HEAD
     "name": "quickmed",
     "short_name": "quickmed",
+=======
+    "name": "hello_world",
+    "short_name": "hello_world",
+>>>>>>> c4e3bdba46f3774bf6c626a037b8307d68d12f94
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
