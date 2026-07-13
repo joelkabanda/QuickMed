@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Miscellaneous
 *.class
 *.log
@@ -44,7 +43,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
-=======
 # Flutter / Dart
 .dart_tool/
 build/
@@ -74,4 +72,3 @@ ehthumbs.db
 
 # Generated web/Chrome device data
 .dart_tool/chrome-device/
->>>>>>> c4e3bdba46f3774bf6c626a037b8307d68d12f94

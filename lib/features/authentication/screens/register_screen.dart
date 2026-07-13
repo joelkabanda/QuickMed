@@ -50,13 +50,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (registeredUser != null && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Registration successful! Welcome to QuickMed'),
+            content: Text('Registration successful! Please log in.'),
             backgroundColor: Colors.green,
           ),
         );
 
         if (mounted) {
-          Navigator.of(context).pushReplacementNamed(AppRoutes.dashboard);
+          Navigator.of(context).pushReplacementNamed(AppRoutes.login);
         }
       }
     } catch (e) {
@@ -235,8 +235,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             width: 24,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              valueColor:
-                                  AlwaysStoppedAnimation(Colors.white),
+                              valueColor: AlwaysStoppedAnimation(Colors.white),
                             ),
                           )
                         : const Text(

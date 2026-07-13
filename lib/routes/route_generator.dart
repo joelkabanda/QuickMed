@@ -4,6 +4,7 @@ import '../features/authentication/screens/forgot_password.dart';
 import '../features/authentication/screens/login_screen.dart';
 import '../features/authentication/screens/register_screen.dart';
 import '../features/authentication/screens/splash_screen.dart';
+import '../features/dashboard/screens/dashboard_screen.dart';
 import 'app_routes.dart';
 
 class AppRouteGenerator {
@@ -19,19 +20,32 @@ class AppRouteGenerator {
         return MaterialPageRoute(builder: (_) => const ForgotPasswordScreen());
       case AppRoutes.dashboard:
         return MaterialPageRoute(
-          builder: (_) => const Scaffold(body: Center(child: Text('Dashboard'))),
+          builder: (_) => const DashboardScreen(),
         );
       case AppRoutes.medications:
         return MaterialPageRoute(
-          builder: (_) => const Scaffold(body: Center(child: Text('Medications'))),
+          builder: (_) =>
+              const Scaffold(body: Center(child: Text('Medications'))),
+        );
+      case AppRoutes.addMedication:
+        return MaterialPageRoute(
+          builder: (_) =>
+              const Scaffold(body: Center(child: Text('Add Medication'))),
         );
       case AppRoutes.reminders:
         return MaterialPageRoute(
-          builder: (_) => const Scaffold(body: Center(child: Text('Reminders'))),
+          builder: (_) =>
+              const Scaffold(body: Center(child: Text('Reminders'))),
         );
       case AppRoutes.pharmacies:
         return MaterialPageRoute(
-          builder: (_) => const Scaffold(body: Center(child: Text('Pharmacies'))),
+          builder: (_) =>
+              const Scaffold(body: Center(child: Text('Pharmacies'))),
+        );
+      case AppRoutes.pharmacyMap:
+        return MaterialPageRoute(
+          builder: (_) =>
+              const Scaffold(body: Center(child: Text('Pharmacy Map'))),
         );
       case AppRoutes.maps:
         return MaterialPageRoute(
@@ -47,7 +61,8 @@ class AppRouteGenerator {
         );
       default:
         return MaterialPageRoute(
-          builder: (_) => const Scaffold(body: Center(child: Text('Route not found'))),
+          builder: (_) =>
+              const Scaffold(body: Center(child: Text('Route not found'))),
         );
     }
   }
