@@ -1,23 +1,16 @@
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:quickmed/models/index.dart';
+import 'package:quickmed/services/database_service.dart';
 
-/// Authentication Service
-/// Handles user authentication operations
-/// 
-/// TODO: Replace mock implementations with Firebase Authentication
 class AuthService {
-  /// Current authenticated user (mock storage)
+  final firebase_auth.FirebaseAuth _auth = firebase_auth.FirebaseAuth.instance;
+  final DatabaseService _databaseService = DatabaseService();
+
   User? _currentUser;
-
-  /// Get current user
   User? get currentUser => _currentUser;
+  bool get isAuthenticated => _auth.currentUser != null;
 
-  /// Check if user is authenticated
-  bool get isAuthenticated => _currentUser != null;
-
-  /// Register a new user
-  /// 
-  /// Returns User object if registration successful
-  /// Throws exception on error
+  // Actual Firebase Registration
   Future<User?> registerUser({
     required String fullName,
     required String email,
@@ -25,151 +18,71 @@ class AuthService {
     required String password,
   }) async {
     try {
-      // TODO: Implement Firebase Authentication
-      // final userCredential = await FirebaseAuth.instance
-      //     .createUserWithEmailAndPassword(
-      //   email: email,
-      //   password: password,
-      // );
-
-      // Simulate network delay
-      await Future.delayed(const Duration(seconds: 2));
-
-      // Mock user creation
-      _currentUser = User(
-        id: 'user_${DateTime.now().millisecondsSinceEpoch}',
+      final credential = await _auth.createUserWithEmailAndPassword(
         email: email,
-        fullName: fullName,
-        phoneNumber: phone,
-        createdAt: DateTime.now(),
+        password: password,
       );
 
-      // TODO: Store user data in Cloud Firestore
-      // await _firestore.collection('users').doc(_currentUser!.id).set(
-      //   _currentUser!.toMap(),
-      // );
+      if (credential.user != null) {
+        _currentUser = User(
+          id: credential.user!.uid,
+          email: email,
+          fullName: fullName,
+          phoneNumber: phone,
+          createdAt: DateTime.now(),
+        );
 
-      return _currentUser;
+        // Save to Firestore collection automatically
+        await _databaseService.saveUser(_currentUser!);
+        return _currentUser;
+      }
+      return null;
     } catch (e) {
+      print("Registration error: $e");
       rethrow;
     }
   }
 
-  /// Login user with email and password
-  /// 
-  /// Returns true if login successful, false otherwise
-  /// Throws exception on error
+  // Actual Firebase Login
   Future<bool> loginUser({
     required String email,
     required String password,
   }) async {
     try {
-      // TODO: Implement Firebase Authentication
-      // final userCredential = await FirebaseAuth.instance
-      //     .signInWithEmailAndPassword(
-      //   email: email,
-      //   password: password,
-      // );
+      final credential = await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
 
-      // Simulate network delay
-      await Future.delayed(const Duration(seconds: 2));
-
-      // Mock login (in real app, fetch from Firebase)
-      if (email.isNotEmpty && password.isNotEmpty) {
+      if (credential.user != null) {
+        // Here you would usually fetch the full profile from Firestore
         _currentUser = User(
-          id: 'user_123', // This would come from Firebase
+          id: credential.user!.uid,
           email: email,
-          fullName: 'User',
+          fullName: credential.user!.displayName ?? 'User',
           createdAt: DateTime.now(),
         );
         return true;
       }
-
       return false;
     } catch (e) {
+      print("Login error: $e");
       rethrow;
     }
   }
 
-  /// Logout current user
-  /// 
-  /// Clears user session and authentication tokens
   Future<void> logout() async {
-    try {
-      // TODO: Implement Firebase logout
-      // await FirebaseAuth.instance.signOut();
-
-      // Simulate network delay
-      await Future.delayed(const Duration(seconds: 1));
-
-      _currentUser = null;
-    } catch (e) {
-      rethrow;
-    }
+    await _auth.signOut();
+    _currentUser = null;
   }
 
-  /// Reset password for email
-  /// 
-  /// Sends password reset link to provided email
-  /// Returns true if email was sent successfully
+  // Actual Firebase Password Reset
   Future<bool> resetPassword(String email) async {
     try {
-      // TODO: Implement Firebase password reset
-      // await FirebaseAuth.instance.sendPasswordResetEmail(
-      //   email: email,
-      // );
-
-      // Simulate network delay
-      await Future.delayed(const Duration(seconds: 2));
-
-      // Validate email
-      if (email.isEmpty || !email.contains('@')) {
-        throw Exception('Invalid email address');
-      }
-
+      await _auth.sendPasswordResetEmail(email: email);
       return true;
     } catch (e) {
-      rethrow;
-    }
-  }
-
-  /// Get user by ID
-  /// 
-  /// Retrieves user profile from database
-  /// Returns User object or null if not found
-  Future<User?> getUserById(String userId) async {
-    try {
-      // TODO: Fetch from Cloud Firestore
-      // final doc = await _firestore.collection('users').doc(userId).get();
-      // if (doc.exists) {
-      //   return User.fromMap(doc.data()!);
-      // }
-
-      // Simulate network delay
-      await Future.delayed(const Duration(seconds: 1));
-
-      return null;
-    } catch (e) {
-      rethrow;
-    }
-  }
-
-  /// Update user profile
-  /// 
-  /// Updates user information in database
-  Future<bool> updateUser(User user) async {
-    try {
-      // TODO: Update in Cloud Firestore
-      // await _firestore.collection('users').doc(user.id).update(
-      //   user.toMap(),
-      // );
-
-      // Simulate network delay
-      await Future.delayed(const Duration(seconds: 1));
-
-      _currentUser = user;
-      return true;
-    } catch (e) {
+      print("Password reset error: $e");
       rethrow;
     }
   }

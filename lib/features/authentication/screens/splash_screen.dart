@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:quickmed/routes/index.dart';
 
@@ -14,12 +15,39 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
+    _checkAuthenticationState();
+  }
 
-    Timer(const Duration(seconds: 3), () {
-      // Navigate to login using route constants
-      // Using push replacement to prevent returning to splash
-      Navigator.of(context).pushReplacementNamed(AppRoutes.login);
-    });
+  Future<void> _checkAuthenticationState() async {
+    try {
+      debugPrint('Starting auth check...');
+      // Wait a minimum of 2 seconds for better UX
+      await Future.delayed(const Duration(seconds: 2));
+
+      if (!mounted) return;
+
+      debugPrint('Checking Firebase current user...');
+      final user = FirebaseAuth.instance.currentUser;
+
+      if (!mounted) return;
+
+      if (user != null) {
+        // User is logged in, navigate to dashboard
+        debugPrint('User authenticated: ${user.email}, navigating to dashboard');
+        Navigator.of(context).pushReplacementNamed(AppRoutes.dashboard);
+      } else {
+        // User is not logged in, navigate to login
+        debugPrint('No user authenticated, navigating to login');
+        Navigator.of(context).pushReplacementNamed(AppRoutes.login);
+      }
+    } catch (e) {
+      debugPrint('Auth check error: $e');
+      if (mounted) {
+        // On error, default to login screen
+        debugPrint('Error occurred, defaulting to login');
+        Navigator.of(context).pushReplacementNamed(AppRoutes.login);
+      }
+    }
   }
 
   @override

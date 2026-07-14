@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "985656001334",
+    "project_id": "campusbites-af75b",
+    "storage_bucket": "campusbites-af75b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:985656001334:android:283f638198a6f9d9e2e997",
+        "android_client_info": {
+          "package_name": "com.example.campusbites"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAVGWjJk9oNFreXgUe-OXkqFA9FLvxwQSQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:985656001334:android:63ba85ff28de46e0e2e997",
+        "android_client_info": {
+          "package_name": "com.example.quickmed"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAVGWjJk9oNFreXgUe-OXkqFA9FLvxwQSQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
