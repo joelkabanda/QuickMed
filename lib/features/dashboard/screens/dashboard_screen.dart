@@ -1,9 +1,73 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:quickmed/features/authentication/services/auth_service.dart';
 import 'package:quickmed/routes/app_routes.dart';
+import 'package:quickmed/models/pharmacy_model.dart';
+import 'package:quickmed/models/user_profile_model.dart';
+import 'package:quickmed/features/dashboard/widgets/pharmacy_stat_card.dart';
+import 'package:quickmed/services/database_service.dart';
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
+
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  SavedPharmacyLocation? _savedPharmacyLocation;
+  late DatabaseService _dbService;
+
+  @override
+  void initState() {
+    super.initState();
+    _dbService = DatabaseService();
+    _loadSavedPharmacyLocation();
+  }
+
+  Future<void> _loadSavedPharmacyLocation() async {
+    try {
+      final userId = FirebaseAuth.instance.currentUser?.uid;
+      if (userId == null) return;
+
+      final saved = await _dbService.getSavedPharmacyLocation(userId);
+      if (mounted) {
+        setState(() {
+          _savedPharmacyLocation = saved;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading saved pharmacy location: $e');
+    }
+  }
+
+  Future<void> _handleSavePharmacyLocation(SavedPharmacyLocation location) async {
+    try {
+      final userId = FirebaseAuth.instance.currentUser?.uid;
+      if (userId == null) return;
+
+      setState(() {
+        if (location.pharmacyId.isEmpty) {
+          _savedPharmacyLocation = null;
+        } else {
+          _savedPharmacyLocation = location;
+        }
+      });
+
+      if (location.pharmacyId.isEmpty) {
+        await _dbService.removeSavedPharmacyLocation(userId);
+      } else {
+        await _dbService.saveSavedPharmacyLocation(userId, location);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error saving location: $e')),
+        );
+      }
+      debugPrint('Error saving pharmacy location: $e');
+    }
+  }
 
   Future<void> _handleLogout(BuildContext context) async {
     final confirmed = await showDialog<bool>(
@@ -202,7 +266,7 @@ class DashboardScreen extends StatelessWidget {
           child: _buildFeatureTile(
             context: context,
             icon: Icons.location_on_outlined,
-            title: 'Find Pharmacy',
+            title: 'Estimations',
             subtitle: 'Nearby open pharmacies',
             color: const Color(0xFFD32F2F),
             route: AppRoutes.pharmacyMap,
@@ -276,145 +340,6 @@ class DashboardScreen extends StatelessWidget {
               _buildResponsiveSummaryCards(context),
               const SizedBox(height: 22),
               _buildResponsiveFeatureTiles(context),
-              const SizedBox(height: 24),
-              const Text(
-                'Today’s Summary',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: Card(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 14,
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const CircleAvatar(
-                              radius: 18,
-                              backgroundColor: Color(0xFFE3F2FD),
-                              child: Icon(Icons.check_circle_outline,
-                                  color: Color(0xFF1E88E5), size: 20),
-                            ),
-                            const SizedBox(height: 12),
-                            const Text('Medication taken',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            const Text('2 of 4 doses',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.black54,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Card(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 14,
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const CircleAvatar(
-                              radius: 18,
-                              backgroundColor: Color(0xFFFFF3E0),
-                              child: Icon(Icons.schedule,
-                                  color: Color(0xFFF57C00), size: 20),
-                            ),
-                            const SizedBox(height: 12),
-                            const Text('Next reminder',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            const Text('Vitamin C 6:00 PM',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.black54,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Card(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 14,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const CircleAvatar(
-                        radius: 18,
-                        backgroundColor: Color(0xFFE8F5E9),
-                        child: Icon(Icons.local_pharmacy,
-                            color: Color(0xFF388E3C), size: 20),
-                      ),
-                      const SizedBox(height: 12),
-                      const Text('Pharmacy nearby',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      const Text('HealthFirst · 1.2 km',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.black54,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
               const SizedBox(height: 24),
             ],
           ),

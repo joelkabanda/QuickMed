@@ -1,5 +1,45 @@
 /// User Profile Model
 
+class SavedPharmacyLocation {
+  final String pharmacyId;
+  final String pharmacyName;
+  final double latitude;
+  final double longitude;
+  final String address;
+  final DateTime savedAt;
+
+  SavedPharmacyLocation({
+    required this.pharmacyId,
+    required this.pharmacyName,
+    required this.latitude,
+    required this.longitude,
+    required this.address,
+    required this.savedAt,
+  });
+
+  factory SavedPharmacyLocation.fromMap(Map<String, dynamic> map) {
+    return SavedPharmacyLocation(
+      pharmacyId: map['pharmacyId'] ?? '',
+      pharmacyName: map['pharmacyName'] ?? '',
+      latitude: (map['latitude'] ?? 0.0).toDouble(),
+      longitude: (map['longitude'] ?? 0.0).toDouble(),
+      address: map['address'] ?? '',
+      savedAt: DateTime.parse(map['savedAt'] ?? DateTime.now().toIso8601String()),
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'pharmacyId': pharmacyId,
+      'pharmacyName': pharmacyName,
+      'latitude': latitude,
+      'longitude': longitude,
+      'address': address,
+      'savedAt': savedAt.toIso8601String(),
+    };
+  }
+}
+
 class UserProfile {
   final String userId;
   final String? bio;
@@ -14,6 +54,7 @@ class UserProfile {
   final String? preferredLanguage;
   final String? timezone;
   final bool notificationsEnabled;
+  final SavedPharmacyLocation? savedPharmacyLocation;
   final DateTime updatedAt;
 
   UserProfile({
@@ -30,6 +71,7 @@ class UserProfile {
     this.preferredLanguage,
     this.timezone,
     required this.notificationsEnabled,
+    this.savedPharmacyLocation,
     required this.updatedAt,
   });
 
@@ -48,6 +90,9 @@ class UserProfile {
       preferredLanguage: map['preferredLanguage'],
       timezone: map['timezone'],
       notificationsEnabled: map['notificationsEnabled'] ?? true,
+      savedPharmacyLocation: map['savedPharmacyLocation'] != null
+          ? SavedPharmacyLocation.fromMap(map['savedPharmacyLocation'])
+          : null,
       updatedAt: DateTime.parse(map['updatedAt'] ?? DateTime.now().toIso8601String()),
     );
   }
@@ -67,6 +112,7 @@ class UserProfile {
       'preferredLanguage': preferredLanguage,
       'timezone': timezone,
       'notificationsEnabled': notificationsEnabled,
+      'savedPharmacyLocation': savedPharmacyLocation?.toMap(),
       'updatedAt': updatedAt.toIso8601String(),
     };
   }
@@ -88,6 +134,7 @@ class UserProfile {
     String? preferredLanguage,
     String? timezone,
     bool? notificationsEnabled,
+    SavedPharmacyLocation? savedPharmacyLocation,
     DateTime? updatedAt,
   }) {
     return UserProfile(
@@ -104,6 +151,7 @@ class UserProfile {
       preferredLanguage: preferredLanguage ?? this.preferredLanguage,
       timezone: timezone ?? this.timezone,
       notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
+      savedPharmacyLocation: savedPharmacyLocation ?? this.savedPharmacyLocation,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }

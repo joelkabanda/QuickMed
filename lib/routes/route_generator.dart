@@ -5,6 +5,10 @@ import '../features/authentication/screens/login_screen.dart';
 import '../features/authentication/screens/register_screen.dart';
 import '../features/authentication/screens/splash_screen.dart';
 import '../features/dashboard/screens/dashboard_screen.dart';
+import '../features/dashboard/screens/location_picker_screen.dart';
+import '../features/dashboard/screens/location_comparison_map_view.dart';
+import '../features/pharmacy/screens/pharmacy_map_screen.dart';
+import '../models/user_profile_model.dart';
 import 'app_routes.dart';
 
 class AppRouteGenerator {
@@ -44,8 +48,18 @@ class AppRouteGenerator {
         );
       case AppRoutes.pharmacyMap:
         return MaterialPageRoute(
-          builder: (_) =>
-              const Scaffold(body: Center(child: Text('Pharmacy Map'))),
+          builder: (_) => const PharmacyMapScreen(),
+        );
+      case AppRoutes.locationPicker:
+        return MaterialPageRoute(
+          builder: (_) => const LocationPickerScreen(),
+        );
+      case AppRoutes.locationComparison:
+        final args = settings.arguments as SavedPharmacyLocation;
+        return MaterialPageRoute(
+          builder: (_) => LocationComparisonMapView(
+            savedLocation: args,
+          ),
         );
       case AppRoutes.maps:
         return MaterialPageRoute(

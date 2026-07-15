@@ -25,6 +25,8 @@ class AppRoutes {
   static const String pharmacies = '/pharmacies';
   static const String pharmacyDetails = '/pharmacies/:id';
   static const String pharmacyMap = '/pharmacies/map';
+  static const String locationPicker = '/location/picker';
+  static const String locationComparison = '/location/comparison';
 
   static const String maps = '/maps';
   static const String directions = '/maps/directions/:pharmacyId';
