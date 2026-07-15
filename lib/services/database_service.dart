@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user_model.dart';
 import '../models/user_profile_model.dart';
+import '../models/medication_model.dart';
 
 class DatabaseService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -18,18 +19,71 @@ class DatabaseService {
   }
 
   // Example: Save medical record
-  Future<void> saveMedication(String userId, Map<String, dynamic> data) async {
+  Future<void> saveMedication(String userId, Medication medication) async {
     try {
       await _db
           .collection('users')
           .doc(userId)
           .collection('medications')
-          .add({
-        ...data,
-        'timestamp': FieldValue.serverTimestamp(),
-      });
+          .doc(medication.id)
+          .set(medication.toMap());
+      debugPrint("Medication saved to Firestore successfully");
     } catch (e) {
       debugPrint("Error saving medication: $e");
+      rethrow;
+    }
+  }
+
+  /// Get all medications for a user
+  Future<List<Medication>> getUserMedications(String userId) async {
+    try {
+      final snapshot = await _db
+          .collection('users')
+          .doc(userId)
+          .collection('medications')
+          .get();
+
+      return snapshot.docs
+          .map((doc) => Medication.fromMap({...doc.data(), 'id': doc.id}))
+          .toList();
+    } catch (e) {
+      debugPrint("Error fetching medications: $e");
+      rethrow;
+    }
+  }
+
+  /// Get a single medication
+  Future<Medication?> getMedication(String userId, String medicationId) async {
+    try {
+      final doc = await _db
+          .collection('users')
+          .doc(userId)
+          .collection('medications')
+          .doc(medicationId)
+          .get();
+
+      if (doc.exists) {
+        return Medication.fromMap({...doc.data()!, 'id': doc.id});
+      }
+      return null;
+    } catch (e) {
+      debugPrint("Error fetching medication: $e");
+      rethrow;
+    }
+  }
+
+  /// Delete a medication
+  Future<void> deleteMedication(String userId, String medicationId) async {
+    try {
+      await _db
+          .collection('users')
+          .doc(userId)
+          .collection('medications')
+          .doc(medicationId)
+          .delete();
+      debugPrint("Medication deleted successfully");
+    } catch (e) {
+      debugPrint("Error deleting medication: $e");
       rethrow;
     }
   }
