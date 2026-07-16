@@ -43,3 +43,32 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+# Flutter / Dart
+.dart_tool/
+build/
+/.packages
+pubspec.lock
+
+# Android
+android/.gradle
+**/local.properties
+**/android/local.properties
+
+# iOS
+ios/Pods/
+
+# VS Code
+.vscode/
+
+# IntelliJ / Android Studio
+.idea/
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+ehthumbs.db
+
+# Generated web/Chrome device data
+.dart_tool/chrome-device/
