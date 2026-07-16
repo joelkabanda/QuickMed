@@ -8,6 +8,7 @@ import '../features/dashboard/screens/dashboard_screen.dart';
 import '../features/dashboard/screens/location_picker_screen.dart';
 import '../features/dashboard/screens/location_comparison_map_view.dart';
 import '../features/dashboard/screens/add_medication_screen.dart';
+import '../features/dashboard/screens/medications_screen.dart';
 import '../features/pharmacy/screens/pharmacy_map_screen.dart';
 import '../models/user_profile_model.dart';
 import '../models/medication_model.dart';
@@ -30,10 +31,14 @@ class AppRouteGenerator {
         );
       case AppRoutes.medications:
         return MaterialPageRoute(
-          builder: (_) =>
-              const Scaffold(body: Center(child: Text('Medications'))),
+          builder: (_) => const MedicationsScreen(),
         );
       case AppRoutes.addMedication:
+        final medication = settings.arguments as Medication?;
+        return MaterialPageRoute(
+          builder: (_) => AddMedicationScreen(medication: medication),
+        );
+      case AppRoutes.editMedication:
         final medication = settings.arguments as Medication?;
         return MaterialPageRoute(
           builder: (_) => AddMedicationScreen(medication: medication),

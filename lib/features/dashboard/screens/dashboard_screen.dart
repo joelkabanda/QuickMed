@@ -226,7 +226,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: _buildSummaryCard(
             context,
             icon: Icons.medication_liquid,
-            title: 'Medications',
+            title: 'Medication Schedules',
             value: '4 active',
             color: const Color(0xFF1565C0),
             route: AppRoutes.medications,
@@ -330,7 +330,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               const SizedBox(height: 8),
               const Text(
-                'Here is your health overview for today.',
+                'Here is your daily health overview.',
                 style: TextStyle(
                   fontSize: 16,
                   color: Colors.black54,

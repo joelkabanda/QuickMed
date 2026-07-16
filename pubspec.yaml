@@ -20,6 +20,7 @@ dependencies:
   latlong2: ^0.9.1
   map_launcher: ^3.4.0
   http: ^1.1.0
+  path_provider: ^2.1.0
 
 dev_dependencies:
   flutter_test:

@@ -207,7 +207,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
+      backgroundColor: const Color(0xFFF8FAFB),
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -217,15 +217,68 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
         ),
         title: Text(
           widget.medication == null ? 'Add Medication' : 'Edit Medication',
-          style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.bold),
+          style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 18),
         ),
       ),
       body: SingleChildScrollView(
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Header section
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [const Color(0xFF1565C0), const Color(0xFF1976D2)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.medication, color: Colors.white, size: 28),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.medication == null ? 'New Medication' : 'Edit Medication',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Fill in the details below',
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.8),
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              
+              // Basic Information Section
+              _buildSectionHeader('Basic Information', Icons.info_outline),
+              const SizedBox(height: 12),
               // Medication Name
               _buildTextField(
                 label: 'Medication Name',
@@ -234,7 +287,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                 icon: Icons.medication,
                 required: true,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
 
               // Medication Type
               _buildDropdown(
@@ -245,12 +298,16 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                   setState(() => _selectedType = value);
                 },
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
 
               // Dosage Card
               _buildDosageCard(),
-              const SizedBox(height: 16),
+              const SizedBox(height: 24),
 
+              // Schedule Section
+              _buildSectionHeader('Schedule', Icons.schedule),
+              const SizedBox(height: 12),
+              
               // Frequency
               _buildDropdown(
                 label: 'Frequency',
@@ -260,12 +317,16 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                   setState(() => _selectedFrequency = value);
                 },
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
 
-              // Clear Schedule Section
+              // Schedule Times
               _buildSchedulingCard(),
-              const SizedBox(height: 16),
+              const SizedBox(height: 24),
 
+              // Medical Details Section
+              _buildSectionHeader('Medical Details', Icons.local_hospital),
+              const SizedBox(height: 12),
+              
               // Purpose/Reason
               _buildTextField(
                 label: 'Purpose (Why taking this medication)',
@@ -273,26 +334,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                 hint: 'e.g., Pain relief, Hypertension treatment',
                 icon: Icons.note,
               ),
-              const SizedBox(height: 16),
-
-              // Quantity
-              _buildTextField(
-                label: 'Quantity Available',
-                controller: _quantityController,
-                hint: 'Number of tablets/units',
-                icon: Icons.inventory_2,
-                keyboardType: TextInputType.number,
-              ),
-              const SizedBox(height: 16),
-
-              // Pharmacy Address (Where to get the medication)
-              _buildTextField(
-                label: 'Where to Get Medication',
-                controller: _pharmacyAddressController,
-                hint: 'Pharmacy name or address',
-                icon: Icons.location_on,
-              ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
 
               // Prescribed By
               _buildTextField(
@@ -301,7 +343,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                 hint: 'Name of prescribing doctor',
                 icon: Icons.person,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
 
               // Side Effects
               _buildTextField(
@@ -311,7 +353,34 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                 icon: Icons.warning,
                 maxLines: 2,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 24),
+
+              // Dosage & Quantity Section
+              _buildSectionHeader('Dosage & Supply', Icons.inventory_2),
+              const SizedBox(height: 12),
+              
+              // Quantity
+              _buildTextField(
+                label: 'Quantity Available',
+                controller: _quantityController,
+                hint: 'Number of tablets/units',
+                icon: Icons.inventory_2,
+                keyboardType: TextInputType.number,
+              ),
+              const SizedBox(height: 24),
+
+              // Pharmacy & Notes Section
+              _buildSectionHeader('Pharmacy & Notes', Icons.location_on),
+              const SizedBox(height: 12),
+              
+              // Pharmacy Address (Where to get the medication)
+              _buildTextField(
+                label: 'Where to Get Medication',
+                controller: _pharmacyAddressController,
+                hint: 'Pharmacy name or address',
+                icon: Icons.location_on,
+              ),
+              const SizedBox(height: 14),
 
               // Description
               _buildTextField(
@@ -321,15 +390,19 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                 icon: Icons.description,
                 maxLines: 2,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 24),
 
+              // Duration Section
+              _buildSectionHeader('Duration', Icons.calendar_today),
+              const SizedBox(height: 12),
+              
               // Start Date
               _buildDateSelector(
                 label: 'Start Date',
                 date: _startDate,
                 onTap: () => _selectDate(context, isEndDate: false),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
 
               // End Date
               _buildDateSelector(
@@ -337,8 +410,12 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                 date: _endDate,
                 onTap: () => _selectDate(context, isEndDate: true),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 24),
 
+              // Reminders Section
+              _buildSectionHeader('Reminders', Icons.notifications_active),
+              const SizedBox(height: 12),
+              
               // Reminder Times
               _buildTimeSelector(
                 label: 'Reminder Times',
@@ -347,29 +424,62 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                 onRemoveTime: (time) => _removeTime(time, isReminder: true),
                 icon: Icons.notifications_active,
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 32),
 
               // Save Button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: _isLoading ? null : _saveMedication,
-                  icon: _isLoading
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.save),
-                  label: Text(widget.medication == null ? 'Add Medication' : 'Update Medication'),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    backgroundColor: const Color(0xFF388E3C),
-                    foregroundColor: Colors.white,
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [const Color(0xFF388E3C), const Color(0xFF2E7D32)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(10),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF388E3C).withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: _isLoading ? null : _saveMedication,
+                    borderRadius: BorderRadius.circular(10),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          if (_isLoading)
+                            const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            )
+                          else
+                            const Icon(Icons.check_circle, color: Colors.white, size: 20),
+                          const SizedBox(width: 8),
+                          Text(
+                            widget.medication == null ? 'Add Medication' : 'Update Medication',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
             ],
           ),
         ),
@@ -866,6 +976,41 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildSectionHeader(String title, IconData icon) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1565C0).withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, color: const Color(0xFF1565C0), size: 20),
+        ),
+        const SizedBox(width: 12),
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+          ),
+        ),
+        const Spacer(),
+        Container(
+          height: 3,
+          width: 20,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [const Color(0xFF1565C0), const Color(0xFF1976D2)],
+            ),
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+      ],
     );
   }
 }
