@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user_model.dart';
 import '../models/user_profile_model.dart';
 import '../models/medication_model.dart';
+import '../models/reminder_model.dart';
 
 class DatabaseService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -22,8 +23,6 @@ class DatabaseService {
   Future<void> saveMedication(String userId, Medication medication) async {
     try {
       await _db
-          .collection('users')
-          .doc(userId)
           .collection('medications')
           .doc(medication.id)
           .set(medication.toMap());
@@ -38,9 +37,8 @@ class DatabaseService {
   Future<List<Medication>> getUserMedications(String userId) async {
     try {
       final snapshot = await _db
-          .collection('users')
-          .doc(userId)
           .collection('medications')
+          .where('userId', isEqualTo: userId)
           .get();
 
       return snapshot.docs
@@ -52,18 +50,62 @@ class DatabaseService {
     }
   }
 
+  /// Save reminder record
+  Future<void> saveReminder(Reminder reminder) async {
+    try {
+      await _db.collection('reminders').doc(reminder.id).set(reminder.toMap());
+      debugPrint("Reminder saved to Firestore successfully");
+    } catch (e) {
+      debugPrint("Error saving reminder: $e");
+      rethrow;
+    }
+  }
+
+  /// Get all reminders for a user
+  Future<List<Reminder>> getUserReminders(String userId) async {
+    try {
+      final snapshot = await _db
+          .collection('reminders')
+          .where('userId', isEqualTo: userId)
+          .get();
+
+      final reminders = snapshot.docs
+          .map((doc) => Reminder.fromMap({...doc.data(), 'id': doc.id}))
+          .toList();
+
+      reminders.sort((a, b) => a.reminderTime.compareTo(b.reminderTime));
+      return reminders;
+    } catch (e) {
+      debugPrint("Error fetching reminders: $e");
+      rethrow;
+    }
+  }
+
+  /// Delete a reminder
+  Future<void> deleteReminder(String userId, String reminderId) async {
+    try {
+      final docRef = _db.collection('reminders').doc(reminderId);
+      final doc = await docRef.get();
+      if (doc.exists && doc.data()?['userId'] == userId) {
+        await docRef.delete();
+        debugPrint("Reminder deleted successfully");
+      } else {
+        throw Exception('Reminder not found or unauthorized');
+      }
+    } catch (e) {
+      debugPrint("Error deleting reminder: $e");
+      rethrow;
+    }
+  }
+
   /// Get a single medication
   Future<Medication?> getMedication(String userId, String medicationId) async {
     try {
-      final doc = await _db
-          .collection('users')
-          .doc(userId)
-          .collection('medications')
-          .doc(medicationId)
-          .get();
+      final doc = await _db.collection('medications').doc(medicationId).get();
 
       if (doc.exists) {
-        return Medication.fromMap({...doc.data()!, 'id': doc.id});
+        final medication = Medication.fromMap({...doc.data()!, 'id': doc.id});
+        return medication.userId == userId ? medication : null;
       }
       return null;
     } catch (e) {
@@ -75,13 +117,14 @@ class DatabaseService {
   /// Delete a medication
   Future<void> deleteMedication(String userId, String medicationId) async {
     try {
-      await _db
-          .collection('users')
-          .doc(userId)
-          .collection('medications')
-          .doc(medicationId)
-          .delete();
-      debugPrint("Medication deleted successfully");
+      final docRef = _db.collection('medications').doc(medicationId);
+      final doc = await docRef.get();
+      if (doc.exists && doc.data()?['userId'] == userId) {
+        await docRef.delete();
+        debugPrint("Medication deleted successfully");
+      } else {
+        throw Exception('Medication not found or unauthorized');
+      }
     } catch (e) {
       debugPrint("Error deleting medication: $e");
       rethrow;

@@ -6,6 +6,7 @@ import 'package:quickmed/routes/app_routes.dart';
 import 'dart:io';
 import 'dart:convert';
 import 'package:path_provider/path_provider.dart';
+import 'package:quickmed/features/dashboard/widgets/medication_schedule_card.dart';
 
 class MedicationsScreen extends StatefulWidget {
   const MedicationsScreen({super.key});
@@ -29,6 +30,8 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
     final userId = FirebaseAuth.instance.currentUser?.uid;
     if (userId != null) {
       _medicationsFuture = _dbService.getUserMedications(userId);
+    } else {
+      _medicationsFuture = Future.error('User not authenticated');
     }
   }
 
@@ -169,7 +172,8 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
                       color: const Color(0xFF1565C0).withOpacity(0.1),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(Icons.medication, color: Color(0xFF1565C0), size: 24),
+                    child: const Icon(Icons.medication,
+                        color: Color(0xFF1565C0), size: 24),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -188,7 +192,8 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
                         Row(
                           children: [
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 2),
                               decoration: BoxDecoration(
                                 color: const Color(0xFF1565C0).withOpacity(0.1),
                                 borderRadius: BorderRadius.circular(4),
@@ -204,7 +209,8 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
                             ),
                             const SizedBox(width: 8),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 2),
                               decoration: BoxDecoration(
                                 color: Colors.green.withOpacity(0.1),
                                 borderRadius: BorderRadius.circular(4),
@@ -214,7 +220,9 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
                                 style: TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w600,
-                                  color: medication.isActive ? Colors.green : Colors.grey,
+                                  color: medication.isActive
+                                      ? Colors.green
+                                      : Colors.grey,
                                 ),
                               ),
                             ),
@@ -227,7 +235,9 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
                     onSelected: (value) {
                       if (value == 'edit') {
                         Navigator.of(context)
-                            .pushNamed(AppRoutes.editMedication.replaceAll(':id', medication.id),
+                            .pushNamed(
+                                AppRoutes.editMedication
+                                    .replaceAll(':id', medication.id),
                                 arguments: medication)
                             .then((_) {
                           setState(() {
@@ -271,67 +281,33 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
               child: Row(
                 children: [
                   Expanded(
-                    child: _buildInfoColumn('Dosage', medication.dosage, Icons.balance),
+                    child: _buildInfoColumn(
+                        'Dosage', medication.dosage, Icons.balance),
                   ),
                   Expanded(
-                    child: _buildInfoColumn('Frequency', medication.frequency, Icons.repeat),
+                    child: _buildInfoColumn(
+                        'Frequency', medication.frequency, Icons.repeat),
                   ),
                   if (medication.purpose != null)
                     Expanded(
-                      child: _buildInfoColumn('Purpose', medication.purpose!, Icons.note),
+                      child: _buildInfoColumn(
+                          'Purpose', medication.purpose!, Icons.note),
                     ),
                 ],
               ),
             ),
             const Divider(height: 1),
-            // Schedule times - Professional schedule grid
             Padding(
               padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Row(
-                    children: [
-                      Icon(Icons.schedule, size: 18, color: Color(0xFF2E7D32)),
-                      SizedBox(width: 8),
-                      Text(
-                        'Today\'s Schedule',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black87,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  if (medication.scheduleTimes.isEmpty)
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Row(
-                        children: [
-                          Icon(Icons.info_outline, size: 18, color: Colors.grey),
-                          SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'No schedule times set',
-                              style: TextStyle(color: Colors.grey, fontSize: 13),
-                            ),
-                          ),
-                        ],
-                      ),
-                    )
-                  else
-                    _buildScheduleTimeline(medication.scheduleTimes, medication.dosage),
-                ],
+              child: MedicationScheduleCard(
+                frequency: medication.frequency,
+                scheduleTimes: medication.scheduleTimes,
+                dosage: medication.dosage,
               ),
             ),
             // Additional info
-            if (medication.prescribedBy != null || medication.pharmacyAddress != null) ...[
+            if (medication.prescribedBy != null ||
+                medication.pharmacyAddress != null) ...[
               const Divider(height: 1),
               Padding(
                 padding: const EdgeInsets.all(16),
@@ -341,10 +317,12 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
                     if (medication.prescribedBy != null)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 8),
-                        child: _buildDetailRow('Prescribed by', medication.prescribedBy!, Icons.person),
+                        child: _buildDetailRow('Prescribed by',
+                            medication.prescribedBy!, Icons.person),
                       ),
                     if (medication.pharmacyAddress != null)
-                      _buildDetailRow('Pharmacy', medication.pharmacyAddress!, Icons.location_on),
+                      _buildDetailRow('Pharmacy', medication.pharmacyAddress!,
+                          Icons.location_on),
                   ],
                 ),
               ),
@@ -365,7 +343,10 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
             const SizedBox(width: 4),
             Text(
               label,
-              style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.w500),
+              style: const TextStyle(
+                  fontSize: 11,
+                  color: Colors.grey,
+                  fontWeight: FontWeight.w500),
             ),
           ],
         ),
@@ -448,12 +429,18 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
             children: [
               Text(
                 label,
-                style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.w500),
+                style: const TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey,
+                    fontWeight: FontWeight.w500),
               ),
               const SizedBox(height: 2),
               Text(
                 value,
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black87),
+                style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -477,7 +464,8 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
         ),
         title: const Text(
           'My Medication Schedule',
-          style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 18),
+          style: TextStyle(
+              color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 18),
         ),
         actions: [
           PopupMenuButton<String>(
@@ -512,23 +500,48 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF1565C0)),
+                    valueColor:
+                        AlwaysStoppedAnimation<Color>(Color(0xFF1565C0)),
                   ),
                   SizedBox(height: 16),
-                  Text('Loading medications...', style: TextStyle(color: Colors.grey)),
+                  Text('Loading medications...',
+                      style: TextStyle(color: Colors.grey)),
                 ],
               ),
             );
           }
 
           if (snapshot.hasError) {
+            final errorText = snapshot.error.toString();
+            final denied = errorText.contains('permission-denied');
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.error_outline, size: 48, color: Colors.red.withOpacity(0.7)),
+                  Icon(
+                    denied ? Icons.lock_outline : Icons.error_outline,
+                    size: 48,
+                    color: denied
+                        ? Colors.orange.withOpacity(0.8)
+                        : Colors.red.withOpacity(0.7),
+                  ),
                   const SizedBox(height: 16),
-                  Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.red)),
+                  Text(
+                    denied
+                        ? 'Firestore permission denied.'
+                        : 'Error: ${snapshot.error}',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        color: denied ? Colors.orange[900] : Colors.red),
+                  ),
+                  const SizedBox(height: 12),
+                  if (denied)
+                    const Text(
+                      'Check your Firestore security rules and ensure the current user can read users/{userId}/medications.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  if (!denied) const SizedBox.shrink(),
                   const SizedBox(height: 16),
                   ElevatedButton.icon(
                     onPressed: () {
@@ -566,7 +579,10 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
                   const SizedBox(height: 20),
                   Text(
                     'No medications yet',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey[700]),
+                    style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey[700]),
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -576,7 +592,9 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
                   const SizedBox(height: 28),
                   ElevatedButton.icon(
                     onPressed: () {
-                      Navigator.of(context).pushNamed(AppRoutes.addMedication).then((_) {
+                      Navigator.of(context)
+                          .pushNamed(AppRoutes.addMedication)
+                          .then((_) {
                         setState(() {
                           _loadMedications();
                         });
@@ -587,8 +605,10 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF1565C0),
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 28, vertical: 12),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
                     ),
                   ),
                 ],
@@ -599,7 +619,8 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
           return ListView(
             children: [
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -616,13 +637,16 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
                         ),
                         Text(
                           'Medication${medications.length != 1 ? 's' : ''}',
-                          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                          style:
+                              TextStyle(fontSize: 12, color: Colors.grey[600]),
                         ),
                       ],
                     ),
                     ElevatedButton.icon(
                       onPressed: () {
-                        Navigator.of(context).pushNamed(AppRoutes.addMedication).then((_) {
+                        Navigator.of(context)
+                            .pushNamed(AppRoutes.addMedication)
+                            .then((_) {
                           setState(() {
                             _loadMedications();
                           });
@@ -633,7 +657,8 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF1565C0),
                         foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8)),
                       ),
                     ),
                   ],
