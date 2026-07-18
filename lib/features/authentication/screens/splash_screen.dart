@@ -1,7 +1,11 @@
 import 'dart:async';
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'login_screen.dart';
+import 'package:quickmed/routes/index.dart';
+import 'package:quickmed/services/location_service.dart';
+import 'package:quickmed/features/dashboard/widgets/location_permission_dialog.dart';
+import 'package:geolocator/geolocator.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -14,15 +18,75 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
+    _checkAuthenticationState();
+  }
 
-    Timer(const Duration(seconds: 3), () {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const LoginScreen(),
-        ),
-      );
-    });
+  Future<void> _checkAuthenticationState() async {
+    try {
+      debugPrint('Starting auth check...');
+      // Wait a minimum of 2 seconds for better UX
+      await Future.delayed(const Duration(seconds: 2));
+
+      if (!mounted) return;
+
+      debugPrint('Checking Firebase current user...');
+      final user = FirebaseAuth.instance.currentUser;
+
+      if (!mounted) return;
+
+      if (user != null) {
+        // User is logged in, check location permission
+        debugPrint('User authenticated: ${user.email}');
+        await _checkLocationPermission();
+      } else {
+        // User is not logged in, navigate to login
+        debugPrint('No user authenticated, navigating to login');
+        Navigator.of(context).pushReplacementNamed(AppRoutes.login);
+      }
+    } catch (e) {
+      debugPrint('Auth check error: $e');
+      if (mounted) {
+        Navigator.of(context).pushReplacementNamed(AppRoutes.login);
+      }
+    }
+  }
+
+  Future<void> _checkLocationPermission() async {
+    try {
+      final permission = await LocationService.checkLocationPermission();
+      
+      if (!mounted) return;
+
+      if (permission == LocationPermission.denied) {
+        // Show location permission dialog
+        await showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => LocationPermissionDialog(
+            onPermissionGranted: () {
+              debugPrint('Location permission granted');
+              _navigateToDashboard();
+            },
+            onPermissionDenied: () {
+              debugPrint('Location permission denied');
+              _navigateToDashboard();
+            },
+          ),
+        );
+      } else {
+        // Permission already granted or in use
+        _navigateToDashboard();
+      }
+    } catch (e) {
+      debugPrint('Location permission check error: $e');
+      _navigateToDashboard();
+    }
+  }
+
+  void _navigateToDashboard() {
+    if (mounted) {
+      Navigator.of(context).pushReplacementNamed(AppRoutes.dashboard);
+    }
   }
 
   @override

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'features/authentication/screens/splash_screen.dart';
+import 'routes/app_routes.dart';
+import 'routes/route_generator.dart';
 
 class QuickMedApp extends StatelessWidget {
   const QuickMedApp({super.key});
@@ -8,12 +9,13 @@ class QuickMedApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: "Quick Med",
+      title: 'Quick Med',
       theme: ThemeData(
         colorSchemeSeed: Colors.blue,
         useMaterial3: true,
       ),
-      home: const SplashScreen(),
+      initialRoute: AppRoutes.splash,
+      onGenerateRoute: AppRouteGenerator.generateRoute,
     );
   }
 }

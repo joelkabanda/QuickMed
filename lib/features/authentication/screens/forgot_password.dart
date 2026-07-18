@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:quickmed/routes/index.dart';
+import '../services/auth_service.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -10,6 +12,7 @@ class ForgotPasswordScreen extends StatefulWidget {
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _emailController = TextEditingController();
+  final _authService = AuthService();
 
   bool _isLoading = false;
 
@@ -22,30 +25,40 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   Future<void> _resetPassword() async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
 
-    // Simulate a network request
-    await Future.delayed(const Duration(seconds: 2));
+    try {
+      final success = await _authService.resetPassword(
+        _emailController.text.trim(),
+      );
 
-    setState(() {
-      _isLoading = false;
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          "A password reset link has been sent to ${_emailController.text}",
-        ),
-        backgroundColor: Colors.green,
-      ),
-    );
-
-    // Later replace the above with:
-    // await FirebaseAuth.instance.sendPasswordResetEmail(
-    //   email: _emailController.text.trim(),
-    // );
+      if (success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              "Password reset link sent to ${_emailController.text}",
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+        // Navigate back to login after successful reset
+        if (mounted) {
+          Future.delayed(const Duration(seconds: 2), () {
+            if (mounted) {
+              Navigator.of(context).pushReplacementNamed(AppRoutes.login);
+            }
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Reset failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override

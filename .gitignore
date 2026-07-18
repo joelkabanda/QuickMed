@@ -5,6 +5,7 @@
 *.swp
 .DS_Store
 .atom/
+<<<<<<< HEAD
 .buildlog/
 .vscode/
 .idea/
@@ -60,3 +61,72 @@ Thumbs.db
 
 # Crash reports
 hs_err_pid*
+=======
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+# Flutter / Dart
+.dart_tool/
+build/
+/.packages
+pubspec.lock
+
+# Android
+android/.gradle
+**/local.properties
+**/android/local.properties
+
+# iOS
+ios/Pods/
+
+# VS Code
+.vscode/
+
+# IntelliJ / Android Studio
+.idea/
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+ehthumbs.db
+
+# Generated web/Chrome device data
+.dart_tool/chrome-device/
+>>>>>>> 44a5c6fb3c78ae0be3ac78d202971d91b8c10005
