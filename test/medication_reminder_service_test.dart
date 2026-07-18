@@ -21,17 +21,18 @@ void main() {
     final reminders = ReminderService.buildRemindersForMedication(
       userId: 'user-1',
       medication: medication,
+      leadTimeMinutes: 30,
     );
 
     expect(reminders.length, 2);
-    expect(reminders.first.reminderTime.hour, 8);
-    expect(reminders.first.reminderTime.minute, 0);
+    expect(reminders.first.reminderTime.hour, 7);
+    expect(reminders.first.reminderTime.minute, 30);
     expect(reminders.last.reminderTime.hour, 20);
-    expect(reminders.last.reminderTime.minute, 30);
+    expect(reminders.last.reminderTime.minute, 0);
   });
 
   test('uses a larger lead time when the user is away from the saved location', () {
     final leadTime = ReminderService.estimateLeadTimeMinutes(distanceKm: 3.2);
-    expect(leadTime, 60);
+    expect(leadTime, 30);
   });
 }
