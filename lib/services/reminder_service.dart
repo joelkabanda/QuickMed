@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import 'package:flutter/foundation.dart';
 import 'package:quickmed/models/medication_model.dart';
 import 'package:quickmed/models/reminder_model.dart';
@@ -14,6 +12,7 @@ class ReminderService {
     required String userId,
     required Medication medication,
     DateTime? baseDate,
+    int? leadTimeMinutes,
   }) {
     final date = baseDate ?? DateTime.now();
     final reminders = <Reminder>[];
@@ -34,8 +33,9 @@ class ReminderService {
         minute,
       );
 
-      final leadTimeMinutes = estimateLeadTimeMinutes();
-      final reminderTime = scheduledTime.subtract(Duration(minutes: leadTimeMinutes));
+      final reminderTime = scheduledTime.subtract(
+        Duration(minutes: leadTimeMinutes ?? defaultLeadTimeMinutes),
+      );
 
       reminders.add(
         Reminder(
@@ -80,7 +80,7 @@ class ReminderService {
       }
 
       final position = await LocationService.getCurrentLocation();
-      final distanceKm = _calculateDistanceKm(
+      final distanceKm = LocationService.calculateDistance(
         position.latitude,
         position.longitude,
         latitude,
@@ -93,15 +93,28 @@ class ReminderService {
     }
   }
 
-  static double _calculateDistanceKm(double lat1, double lon1, double lat2, double lon2) {
-    const earthRadiusKm = 6371.0;
-    final dLat = _toRadians(lat2 - lat1);
-    final dLon = _toRadians(lon2 - lon1);
-    final a = sin(_toRadians(lat1)) * sin(_toRadians(lat2)) +
-        cos(_toRadians(lat1)) * cos(_toRadians(lat2)) * cos(dLon);
-    final c = 2 * atan2(sqrt(a), sqrt(1 - a));
-    return earthRadiusKm * c;
-  }
+  static Future<int> estimateLeadTimeMinutesForAddress(String? address) async {
+    if (address == null || address.trim().isEmpty) {
+      return defaultLeadTimeMinutes;
+    }
 
-  static double _toRadians(double degrees) => degrees * pi / 180;
+    try {
+      final coordinates = await LocationService.getCoordinatesFromAddress(address);
+      if (coordinates.isEmpty) {
+        return defaultLeadTimeMinutes;
+      }
+
+      final position = await LocationService.getCurrentLocation();
+      final distanceKm = LocationService.calculateDistance(
+        position.latitude,
+        position.longitude,
+        coordinates.first.latitude,
+        coordinates.first.longitude,
+      );
+      return estimateLeadTimeMinutes(distanceKm: distanceKm);
+    } catch (e) {
+      debugPrint('Unable to estimate reminder lead time from address: $e');
+      return defaultLeadTimeMinutes;
+    }
+  }
 }

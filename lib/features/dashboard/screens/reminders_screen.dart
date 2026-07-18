@@ -54,6 +54,12 @@ class _RemindersScreenState extends State<RemindersScreen> {
     }
   }
 
+  String _getReminderTitle(Reminder reminder) {
+    final note = reminder.notes ?? '';
+    final match = RegExp(r'Scheduled for (.+) at').firstMatch(note);
+    return match?.group(1)?.trim() ?? 'Medication reminder';
+  }
+
   Widget _buildReminderCard(Reminder reminder) {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -82,7 +88,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Reminder for ${reminder.medicationId}',
+                        _getReminderTitle(reminder),
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
@@ -242,12 +248,38 @@ class _RemindersScreenState extends State<RemindersScreen> {
             );
           }
 
-          return ListView.builder(
+          final upcomingReminders = reminders
+              .where((reminder) => reminder.reminderTime.isAfter(DateTime.now()))
+              .toList();
+
+          return ListView(
             padding: const EdgeInsets.only(bottom: 100, top: 16),
-            itemCount: reminders.length,
-            itemBuilder: (context, index) {
-              return _buildReminderCard(reminders[index]);
-            },
+            children: [
+              if (upcomingReminders.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2E7D32).withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.info_outline, color: Color(0xFF2E7D32)),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            '${upcomingReminders.length} reminder(s) are pending before your scheduled dose time based on your current location and pickup address.',
+                            style: const TextStyle(color: Colors.black87, fontSize: 13),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ...reminders.map((reminder) => _buildReminderCard(reminder)).toList(),
+            ],
           );
         },
       ),

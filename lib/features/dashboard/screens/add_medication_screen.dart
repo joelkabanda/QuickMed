@@ -1,7 +1,13 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:quickmed/models/medication_model.dart';
 import 'package:quickmed/services/database_service.dart';
+import 'package:quickmed/services/reminder_service.dart';
 import 'package:quickmed/features/dashboard/widgets/medication_schedule_card.dart';
 
 class AddMedicationScreen extends StatefulWidget {
@@ -33,6 +39,10 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
   List<String> _scheduleTimes = [];
   List<String> _reminderTimes = [];
   bool _isLoading = false;
+  bool _isScanning = false;
+  File? _capturedMedicationImage;
+  final ImagePicker _imagePicker = ImagePicker();
+  final TextRecognizer _textRecognizer = TextRecognizer();
 
   final List<String> _medicationTypes = [
     'Tablet',
@@ -99,6 +109,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
     _quantityController.dispose();
     _purposeController.dispose();
     _pharmacyAddressController.dispose();
+    _textRecognizer.close();
     super.dispose();
   }
 
@@ -158,6 +169,109 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
     });
   }
 
+  Future<void> _captureMedicationImage() async {
+    final cameraStatus = await Permission.camera.request();
+    if (!cameraStatus.isGranted) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Camera permission is required to scan medication details.')),
+        );
+      }
+      return;
+    }
+
+    final pickedFile = await _imagePicker.pickImage(
+      source: ImageSource.camera,
+      preferredCameraDevice: CameraDevice.rear,
+    );
+
+    if (pickedFile == null) {
+      return;
+    }
+
+    final imageFile = File(pickedFile.path);
+    setState(() {
+      _capturedMedicationImage = imageFile;
+      _isScanning = true;
+    });
+
+    await _extractMedicationDetails(imageFile);
+  }
+
+  Future<void> _extractMedicationDetails(File imageFile) async {
+    try {
+      final inputImage = InputImage.fromFile(imageFile);
+      final recognizedText = await _textRecognizer.processImage(inputImage);
+      final lines = recognizedText.text
+          .split(RegExp(r'\r?\n'))
+          .map((line) => line.trim())
+          .where((line) => line.isNotEmpty)
+          .toList();
+
+      String? detectedName;
+      String? detectedDosage;
+
+      for (final line in lines) {
+        final lower = line.toLowerCase();
+        if (detectedName == null &&
+            lower.length > 3 &&
+            !lower.contains('tablet') &&
+            !lower.contains('capsule') &&
+            !lower.contains('ml') &&
+            !lower.contains('mg') &&
+            !lower.contains('take') &&
+            !lower.contains('prescription')) {
+          detectedName = line;
+        }
+
+        if (detectedDosage == null) {
+          final dosageMatch = RegExp(
+            r'(\d+(\.\d+)?\s*(mg|ml|g|mcg|tablet|tablets|capsule|capsules))',
+          ).firstMatch(line);
+          if (dosageMatch != null) {
+            detectedDosage = dosageMatch.group(0);
+          }
+        }
+      }
+
+      if (detectedName != null || detectedDosage != null) {
+        setState(() {
+          if (detectedName != null) {
+            _nameController.text = detectedName!;
+          }
+          if (detectedDosage != null) {
+            _dosageController.text = detectedDosage!;
+          }
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Medication details were pulled from the photo. Please review them before saving.'),
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('The photo was captured, but the label details were not clear enough. You can enter them manually.'),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Unable to read the medication label: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isScanning = false);
+      }
+    }
+  }
+
   Future<void> _saveMedication() async {
     if (_nameController.text.isEmpty || _dosageController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -207,7 +321,23 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
         createdAt: widget.medication?.createdAt ?? DateTime.now(),
       );
 
-      await DatabaseService().saveMedication(userId, medication);
+      final dbService = DatabaseService();
+      await dbService.saveMedication(userId, medication);
+
+      final leadTimeMinutes = await ReminderService.estimateLeadTimeMinutesForAddress(
+        _pharmacyAddressController.text.isEmpty
+            ? null
+            : _pharmacyAddressController.text,
+      );
+      final generatedReminders = ReminderService.buildRemindersForMedication(
+        userId: userId,
+        medication: medication,
+        leadTimeMinutes: leadTimeMinutes,
+      );
+
+      for (final reminder in generatedReminders) {
+        await dbService.saveReminder(reminder);
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -305,6 +435,9 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                   ],
                 ),
               ),
+              const SizedBox(height: 24),
+
+              _buildCameraCaptureCard(),
               const SizedBox(height: 24),
 
               // Basic Information Section
@@ -510,6 +643,66 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildCameraCaptureCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.blue.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.camera_alt, color: Colors.blue, size: 20),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Capture medication details with your camera',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Take a photo of the medication label to auto-fill the medication name and dosage. The app will also use your pickup location to set a smarter reminder lead time.',
+            style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: _isScanning ? null : _captureMedicationImage,
+              icon: _isScanning
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Icon(Icons.camera_alt),
+              label: Text(_isScanning ? 'Scanning label…' : 'Scan medication label'),
+            ),
+          ),
+          if (_capturedMedicationImage != null) ...[
+            const SizedBox(height: 12),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Image.file(
+                _capturedMedicationImage!,
+                height: 180,
+                width: double.infinity,
+                fit: BoxFit.cover,
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
