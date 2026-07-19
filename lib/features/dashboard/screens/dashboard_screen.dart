@@ -5,6 +5,7 @@ import 'package:quickmed/routes/app_routes.dart';
 import 'package:quickmed/models/pharmacy_model.dart';
 import 'package:quickmed/models/user_profile_model.dart';
 import 'package:quickmed/features/dashboard/widgets/pharmacy_stat_card.dart';
+import 'package:quickmed/models/reminder_model.dart';
 import 'package:quickmed/services/database_service.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -17,12 +18,15 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   SavedPharmacyLocation? _savedPharmacyLocation;
   late DatabaseService _dbService;
+  int? _activeMedicationsCount;
+  int? _upcomingRemindersCount;
 
   @override
   void initState() {
     super.initState();
     _dbService = DatabaseService();
     _loadSavedPharmacyLocation();
+    _loadDashboardCounts();
   }
 
   Future<void> _loadSavedPharmacyLocation() async {
@@ -41,7 +45,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  Future<void> _handleSavePharmacyLocation(SavedPharmacyLocation location) async {
+  Future<void> _loadDashboardCounts() async {
+    try {
+      final userId = FirebaseAuth.instance.currentUser?.uid;
+      if (userId == null) return;
+
+      final medications = await _dbService.getUserMedications(userId);
+      final reminders = await _dbService.getUserReminders(userId);
+      final upcomingReminders = reminders.where((reminder) {
+        return reminder.status == ReminderStatus.pending &&
+            reminder.reminderTime.isAfter(DateTime.now());
+      }).length;
+
+      if (mounted) {
+        setState(() {
+          _activeMedicationsCount = medications.length;
+          _upcomingRemindersCount = upcomingReminders;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading dashboard counts: $e');
+    }
+  }
+
+  Future<void> _handleSavePharmacyLocation(
+      SavedPharmacyLocation location) async {
     try {
       final userId = FirebaseAuth.instance.currentUser?.uid;
       if (userId == null) return;
@@ -115,13 +143,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
     required String value,
     required Color color,
     String? route,
+    VoidCallback? onTap,
   }) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
-        onTap:
-            route == null ? null : () => Navigator.of(context).pushNamed(route),
+        onTap: onTap ??
+            (route == null
+                ? null
+                : () => Navigator.of(context).pushNamed(route)),
         child: Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
@@ -174,9 +205,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
-        onTap: route == null
-            ? null
-            : () => Navigator.of(context).pushNamed(route),
+        onTap:
+            route == null ? null : () => Navigator.of(context).pushNamed(route),
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -226,10 +256,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: _buildSummaryCard(
             context,
             icon: Icons.medication_liquid,
-            title: 'Medications',
-            value: '4 active',
+            title: 'Medication Schedules',
+            value: _activeMedicationsCount != null
+                ? '${_activeMedicationsCount!} active'
+                : 'Loading...',
             color: const Color(0xFF1565C0),
-            route: AppRoutes.medications,
+            onTap: () {
+              Navigator.of(context)
+                  .pushNamed(AppRoutes.medications)
+                  .then((_) => _loadDashboardCounts());
+            },
           ),
         ),
         const SizedBox(width: 16),
@@ -238,9 +274,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
             context,
             icon: Icons.access_time,
             title: 'Reminders',
-            value: '2 upcoming',
+            value: _upcomingRemindersCount != null
+                ? '${_upcomingRemindersCount!} upcoming'
+                : 'Loading...',
             color: const Color(0xFF2E7D32),
-            route: AppRoutes.reminders,
+            onTap: () {
+              Navigator.of(context)
+                  .pushNamed(AppRoutes.reminders)
+                  .then((_) => _loadDashboardCounts());
+            },
           ),
         ),
       ],
@@ -330,7 +372,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               const SizedBox(height: 8),
               const Text(
-                'Here is your health overview for today.',
+                'Here is your daily health overview.',
                 style: TextStyle(
                   fontSize: 16,
                   color: Colors.black54,

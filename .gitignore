@@ -5,6 +5,63 @@
 *.swp
 .DS_Store
 .atom/
+<<<<<<< HEAD
+.buildlog/
+.vscode/
+.idea/
+*.iml
+
+# Flutter/Dart/Pub related
+**/doc/api/
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+.fvm/
+
+# Android related
+**/android/.gradle/
+**/android/captures/
+**/android/local.properties
+**/android/**/GeneratedPluginRegistrant.java
+**/android/app/debug.keystore
+**/android/app/release.keystore
+
+# iOS/Xcode related
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/flutter_export_environment.sh
+**/ios/Flutter/ephemeral/
+**/ios/Runner.xcodeproj/project.xcworkspace/
+**/ios/Runner.xcworkspace/
+**/ios/Pods/
+**/ios/.symlinks/
+**/ios/*.mode1v3
+**/ios/*.mode2v3
+**/ios/*.moved-aside
+**/ios/*.pbxuser
+**/ios/*.perspectivev3
+**/ios/*sync/
+**/ios/.DS_Store
+**/ios/Flutter/App.framework
+**/ios/Flutter/Flutter.framework
+**/ios/Flutter/Flutter.podspec
+
+# Web related
+/web/coverage/
+
+# Windows related
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+
+# Crash reports
+hs_err_pid*
+=======
 .build/
 .buildlog/
 .history
@@ -72,3 +129,4 @@ ehthumbs.db
 
 # Generated web/Chrome device data
 .dart_tool/chrome-device/
+>>>>>>> 44a5c6fb3c78ae0be3ac78d202971d91b8c10005

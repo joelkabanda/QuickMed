@@ -7,6 +7,10 @@ import '../features/authentication/screens/splash_screen.dart';
 import '../features/dashboard/screens/dashboard_screen.dart';
 import '../features/dashboard/screens/location_picker_screen.dart';
 import '../features/dashboard/screens/location_comparison_map_view.dart';
+import '../features/dashboard/screens/medications_screen.dart';
+import '../features/dashboard/screens/add_medication_screen.dart';
+import '../features/dashboard/screens/reminders_screen.dart';
+import '../features/dashboard/screens/add_reminder_screen.dart';
 import '../features/pharmacy/screens/pharmacy_map_screen.dart';
 import '../models/user_profile_model.dart';
 import 'app_routes.dart';
@@ -28,18 +32,19 @@ class AppRouteGenerator {
         );
       case AppRoutes.medications:
         return MaterialPageRoute(
-          builder: (_) =>
-              const Scaffold(body: Center(child: Text('Medications'))),
+          builder: (_) => const MedicationsScreen(),
         );
       case AppRoutes.addMedication:
         return MaterialPageRoute(
-          builder: (_) =>
-              const Scaffold(body: Center(child: Text('Add Medication'))),
+          builder: (_) => const AddMedicationScreen(),
         );
       case AppRoutes.reminders:
         return MaterialPageRoute(
-          builder: (_) =>
-              const Scaffold(body: Center(child: Text('Reminders'))),
+          builder: (_) => const RemindersScreen(),
+        );
+      case AppRoutes.addReminder:
+        return MaterialPageRoute(
+          builder: (_) => const AddReminderScreen(),
         );
       case AppRoutes.pharmacies:
         return MaterialPageRoute(

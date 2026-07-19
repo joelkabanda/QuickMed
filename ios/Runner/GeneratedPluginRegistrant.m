@@ -36,6 +36,24 @@
 @import geolocator_apple;
 #endif
 
+#if __has_include(<google_mlkit_commons/GoogleMlKitCommonsPlugin.h>)
+#import <google_mlkit_commons/GoogleMlKitCommonsPlugin.h>
+#else
+@import google_mlkit_commons;
+#endif
+
+#if __has_include(<google_mlkit_text_recognition/GoogleMlKitTextRecognitionPlugin.h>)
+#import <google_mlkit_text_recognition/GoogleMlKitTextRecognitionPlugin.h>
+#else
+@import google_mlkit_text_recognition;
+#endif
+
+#if __has_include(<image_picker_ios/FLTImagePickerPlugin.h>)
+#import <image_picker_ios/FLTImagePickerPlugin.h>
+#else
+@import image_picker_ios;
+#endif
+
 #if __has_include(<map_launcher/MapLauncherPlugin.h>)
 #import <map_launcher/MapLauncherPlugin.h>
 #else
@@ -56,6 +74,9 @@
   [FLTFirebaseCorePlugin registerWithRegistrar:[registry registrarForPlugin:@"FLTFirebaseCorePlugin"]];
   [GeocodingPlugin registerWithRegistrar:[registry registrarForPlugin:@"GeocodingPlugin"]];
   [GeolocatorPlugin registerWithRegistrar:[registry registrarForPlugin:@"GeolocatorPlugin"]];
+  [GoogleMlKitCommonsPlugin registerWithRegistrar:[registry registrarForPlugin:@"GoogleMlKitCommonsPlugin"]];
+  [GoogleMlKitTextRecognitionPlugin registerWithRegistrar:[registry registrarForPlugin:@"GoogleMlKitTextRecognitionPlugin"]];
+  [FLTImagePickerPlugin registerWithRegistrar:[registry registrarForPlugin:@"FLTImagePickerPlugin"]];
   [MapLauncherPlugin registerWithRegistrar:[registry registrarForPlugin:@"MapLauncherPlugin"]];
   [PermissionHandlerPlugin registerWithRegistrar:[registry registrarForPlugin:@"PermissionHandlerPlugin"]];
 }
