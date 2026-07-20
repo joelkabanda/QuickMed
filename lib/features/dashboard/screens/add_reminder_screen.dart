@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:quickmed/constants/app_colors.dart';
 import 'package:quickmed/models/reminder_model.dart';
 import 'package:quickmed/services/database_service.dart';
 
@@ -114,7 +115,7 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
               decoration: InputDecoration(
                 hintText: 'Enter medication ID',
                 border:
-                    OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
               ),
             ),
             const SizedBox(height: 20),
@@ -126,11 +127,11 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
               child: Container(
                 width: double.infinity,
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.grey),
-                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppColors.border),
+                  color: AppColors.surface,
                 ),
                 child: Text(
                   _reminderTime != null
@@ -138,8 +139,8 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
                       : 'Select reminder date and time',
                   style: TextStyle(
                     color: _reminderTime != null
-                        ? Colors.black87
-                        : Colors.grey[600],
+                        ? AppColors.textPrimary
+                        : AppColors.textSecondary,
                   ),
                 ),
               ),
@@ -151,9 +152,9 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
               value: _status,
               decoration: InputDecoration(
                 border:
-                    OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
                 filled: true,
-                fillColor: Colors.white,
+                fillColor: AppColors.surface,
               ),
               items: ReminderStatus.values.map((status) {
                 return DropdownMenuItem(
@@ -179,7 +180,7 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
               decoration: InputDecoration(
                 hintText: 'Optional reminder notes',
                 border:
-                    OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
               ),
             ),
             const SizedBox(height: 28),
@@ -188,11 +189,15 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
               child: ElevatedButton(
                 onPressed: _isSaving ? null : _saveReminder,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF2E7D32),
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
                 child: _isSaving
-                    ? const CircularProgressIndicator(color: Colors.white)
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                            color: Colors.white, strokeWidth: 2),
+                      )
                     : const Text('Save Reminder',
                         style: TextStyle(fontSize: 16)),
               ),

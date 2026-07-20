@@ -320,7 +320,7 @@ class _LocationComparisonMapViewState extends State<LocationComparisonMapView> {
                                   userLocation.longitude),
                               savedLatLng,
                             ],
-                            color: Colors.blue.withOpacity(0.5),
+                            color: Colors.blue.withValues(alpha: 0.5),
                             strokeWidth: 2,
                             isDotted: true,
                           ),
@@ -371,7 +371,7 @@ class _LocationComparisonMapViewState extends State<LocationComparisonMapView> {
                                     ),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: Colors.black.withOpacity(0.3),
+                                        color: Colors.black.withValues(alpha: 0.3),
                                         blurRadius: 8,
                                       ),
                                     ],
@@ -422,7 +422,7 @@ class _LocationComparisonMapViewState extends State<LocationComparisonMapView> {
                                   ),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black.withOpacity(0.3),
+                                      color: Colors.black.withValues(alpha: 0.3),
                                       blurRadius: 8,
                                     ),
                                   ],
@@ -476,7 +476,7 @@ class _LocationComparisonMapViewState extends State<LocationComparisonMapView> {
               color: Colors.white,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Colors.black.withValues(alpha: 0.1),
                   blurRadius: 8,
                   offset: const Offset(0, -2),
                 ),
@@ -519,7 +519,7 @@ class _LocationComparisonMapViewState extends State<LocationComparisonMapView> {
                               vertical: 4,
                             ),
                             decoration: BoxDecoration(
-                              color: Colors.blue.withOpacity(0.1),
+                              color: Colors.blue.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
@@ -537,7 +537,7 @@ class _LocationComparisonMapViewState extends State<LocationComparisonMapView> {
                               vertical: 4,
                             ),
                             decoration: BoxDecoration(
-                              color: Colors.orange.withOpacity(0.1),
+                              color: Colors.orange.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(

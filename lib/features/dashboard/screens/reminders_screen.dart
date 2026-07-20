@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:quickmed/constants/app_colors.dart';
 import 'package:quickmed/models/reminder_model.dart';
 import 'package:quickmed/services/database_service.dart';
 import 'package:quickmed/routes/app_routes.dart';
@@ -62,10 +63,8 @@ class _RemindersScreenState extends State<RemindersScreen> {
 
   Widget _buildReminderCard(Reminder reminder) {
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -73,16 +72,16 @@ class _RemindersScreenState extends State<RemindersScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  width: 44,
-                  height: 44,
+                  width: 48,
+                  height: 48,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF2E7D32).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
+                    color: AppColors.success.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(14),
                   ),
                   child: const Icon(Icons.notifications_active,
-                      color: Color(0xFF2E7D32)),
+                      color: AppColors.success),
                 ),
-                const SizedBox(width: 14),
+                const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -91,20 +90,25 @@ class _RemindersScreenState extends State<RemindersScreen> {
                         _getReminderTitle(reminder),
                         style: const TextStyle(
                           fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
                         ),
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 8),
                       Text(
-                        reminder.notes ?? 'No additional notes',
+                        reminder.notes?.isNotEmpty == true
+                            ? reminder.notes!
+                            : 'No additional notes',
                         style: const TextStyle(
-                            color: Colors.black54, fontSize: 13),
+                            color: AppColors.textSecondary, fontSize: 14),
                       ),
                     ],
                   ),
                 ),
                 PopupMenuButton<String>(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   onSelected: (value) {
                     if (value == 'delete') {
                       _deleteReminder(reminder.id);
@@ -116,16 +120,17 @@ class _RemindersScreenState extends State<RemindersScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
             Wrap(
-              spacing: 8,
-              runSpacing: 8,
+              spacing: 10,
+              runSpacing: 10,
               children: [
                 _buildInfoChip('Time', _formatDateTime(reminder.reminderTime),
-                    Colors.blue),
-                _buildInfoChip('Status', reminder.status.name, Colors.green),
+                    AppColors.primary),
+                _buildInfoChip(
+                    'Status', reminder.status.name, AppColors.success),
                 _buildInfoChip('Created', _formatDateTime(reminder.createdAt),
-                    Colors.grey),
+                    AppColors.textSecondary),
               ],
             ),
           ],
@@ -136,13 +141,20 @@ class _RemindersScreenState extends State<RemindersScreen> {
 
   Widget _buildInfoChip(String label, String value, Color color) {
     return Chip(
-      backgroundColor: color.withOpacity(0.12),
+      backgroundColor: color.withOpacity(0.14),
       label: Text(
         '$label: $value',
         style: TextStyle(
-          color: color.computeLuminance() > 0.5 ? Colors.black87 : Colors.white,
+          color: color.computeLuminance() > 0.5
+              ? AppColors.textPrimary
+              : Colors.white,
           fontSize: 12,
+          fontWeight: FontWeight.w600,
         ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
       ),
     );
   }
@@ -154,15 +166,11 @@ class _RemindersScreenState extends State<RemindersScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFB),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        title: const Text(
-          'Reminders',
-          style: TextStyle(
-              color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 18),
-        ),
+        title: const Text('Reminders'),
+        centerTitle: false,
+        surfaceTintColor: AppColors.surface,
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
@@ -174,7 +182,6 @@ class _RemindersScreenState extends State<RemindersScreen> {
             }
           });
         },
-        backgroundColor: const Color(0xFF2E7D32),
         child: const Icon(Icons.add),
       ),
       body: FutureBuilder<List<Reminder>>(
@@ -206,8 +213,8 @@ class _RemindersScreenState extends State<RemindersScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.notifications_off,
-                        size: 64, color: Colors.grey),
+                    Icon(Icons.notifications_off,
+                        size: 64, color: AppColors.textSecondary),
                     const SizedBox(height: 24),
                     const Text(
                       'No reminders yet',
@@ -215,10 +222,10 @@ class _RemindersScreenState extends State<RemindersScreen> {
                           TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 12),
-                    const Text(
+                    Text(
                       'Create reminders to stay on top of your medications.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.black54),
+                      style: const TextStyle(color: AppColors.textSecondary),
                     ),
                     const SizedBox(height: 24),
                     ElevatedButton.icon(
@@ -236,8 +243,6 @@ class _RemindersScreenState extends State<RemindersScreen> {
                       icon: const Icon(Icons.add),
                       label: const Text('Add Reminder'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF2E7D32),
-                        foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(
                             horizontal: 28, vertical: 14),
                       ),
@@ -249,7 +254,8 @@ class _RemindersScreenState extends State<RemindersScreen> {
           }
 
           final upcomingReminders = reminders
-              .where((reminder) => reminder.reminderTime.isAfter(DateTime.now()))
+              .where(
+                  (reminder) => reminder.reminderTime.isAfter(DateTime.now()))
               .toList();
 
           return ListView(
@@ -257,28 +263,32 @@ class _RemindersScreenState extends State<RemindersScreen> {
             children: [
               if (upcomingReminders.isNotEmpty)
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                   child: Container(
-                    padding: const EdgeInsets.all(14),
+                    padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF2E7D32).withOpacity(0.08),
-                      borderRadius: BorderRadius.circular(14),
+                      color: AppColors.success.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(16),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.info_outline, color: Color(0xFF2E7D32)),
+                        const Icon(Icons.info_outline,
+                            color: AppColors.success),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
-                            '${upcomingReminders.length} reminder(s) are pending before your scheduled dose time based on your current location and pickup address.',
-                            style: const TextStyle(color: Colors.black87, fontSize: 13),
+                            '${upcomingReminders.length} upcoming reminders are scheduled soon. Keep your medication plan on track.',
+                            style: const TextStyle(
+                                color: AppColors.textPrimary, fontSize: 14),
                           ),
                         ),
                       ],
                     ),
                   ),
                 ),
-              ...reminders.map((reminder) => _buildReminderCard(reminder)).toList(),
+              ...reminders
+                  .map((reminder) => _buildReminderCard(reminder))
+                  .toList(),
             ],
           );
         },
