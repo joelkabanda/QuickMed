@@ -3,9 +3,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:quickmed/constants/app_colors.dart';
 import 'package:quickmed/features/authentication/services/auth_service.dart';
 import 'package:quickmed/routes/app_routes.dart';
-import 'package:quickmed/models/pharmacy_model.dart';
-import 'package:quickmed/models/user_profile_model.dart';
-import 'package:quickmed/features/dashboard/widgets/pharmacy_stat_card.dart';
 import 'package:quickmed/models/reminder_model.dart';
 import 'package:quickmed/services/database_service.dart';
 
@@ -17,7 +14,6 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  SavedPharmacyLocation? _savedPharmacyLocation;
   late DatabaseService _dbService;
   int? _activeMedicationsCount;
   int? _upcomingRemindersCount;
@@ -26,24 +22,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void initState() {
     super.initState();
     _dbService = DatabaseService();
-    _loadSavedPharmacyLocation();
     _loadDashboardCounts();
-  }
-
-  Future<void> _loadSavedPharmacyLocation() async {
-    try {
-      final userId = FirebaseAuth.instance.currentUser?.uid;
-      if (userId == null) return;
-
-      final saved = await _dbService.getSavedPharmacyLocation(userId);
-      if (mounted) {
-        setState(() {
-          _savedPharmacyLocation = saved;
-        });
-      }
-    } catch (e) {
-      debugPrint('Error loading saved pharmacy location: $e');
-    }
   }
 
   Future<void> _loadDashboardCounts() async {
@@ -66,35 +45,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
     } catch (e) {
       debugPrint('Error loading dashboard counts: $e');
-    }
-  }
-
-  Future<void> _handleSavePharmacyLocation(
-      SavedPharmacyLocation location) async {
-    try {
-      final userId = FirebaseAuth.instance.currentUser?.uid;
-      if (userId == null) return;
-
-      setState(() {
-        if (location.pharmacyId.isEmpty) {
-          _savedPharmacyLocation = null;
-        } else {
-          _savedPharmacyLocation = location;
-        }
-      });
-
-      if (location.pharmacyId.isEmpty) {
-        await _dbService.removeSavedPharmacyLocation(userId);
-      } else {
-        await _dbService.saveSavedPharmacyLocation(userId, location);
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error saving location: $e')),
-        );
-      }
-      debugPrint('Error saving pharmacy location: $e');
     }
   }
 
@@ -158,14 +108,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
             gradient: LinearGradient(
-              colors: [color.withOpacity(0.95), color.withOpacity(0.78)],
+              colors: [
+                color.withAlpha((0.95 * 255).round()),
+                color.withAlpha((0.78 * 255).round())
+              ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(24),
             boxShadow: [
               BoxShadow(
-                color: color.withOpacity(0.18),
+                color: color.withAlpha((0.18 * 255).round()),
                 blurRadius: 16,
                 offset: const Offset(0, 10),
               ),
@@ -177,7 +130,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             children: [
               CircleAvatar(
                 radius: 18,
-                backgroundColor: Colors.white.withOpacity(0.22),
+                backgroundColor: Colors.white.withAlpha((0.22 * 255).round()),
                 child: Icon(icon, color: Colors.white, size: 20),
               ),
               const SizedBox(height: 16),
@@ -222,9 +175,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         child: Container(
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.12),
+            color: color.withAlpha((0.12 * 255).round()),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: color.withOpacity(0.16)),
+            border: Border.all(color: color.withAlpha((0.16 * 255).round())),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
