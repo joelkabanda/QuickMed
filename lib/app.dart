@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'constants/app_theme.dart';
-import 'routes/app_routes.dart';
-import 'routes/route_generator.dart';
+import 'package:quickmed/constants/app_theme.dart';
+import 'package:quickmed/routes/app_routes.dart';
+import 'package:quickmed/routes/route_generator.dart';
 
 class QuickMedApp extends StatelessWidget {
   const QuickMedApp({super.key});

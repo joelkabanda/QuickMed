@@ -92,7 +92,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     required IconData icon,
     required String title,
     required String value,
-    required Color color,
+    required List<Color> gradient,
+    Color? backgroundColor,
+    required Color textColor,
     String? route,
     VoidCallback? onTap,
   }) {
@@ -107,20 +109,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
         child: Container(
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                color.withAlpha((0.95 * 255).round()),
-                color.withAlpha((0.78 * 255).round())
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
+            gradient: gradient.isNotEmpty
+                ? LinearGradient(
+                    colors: gradient,
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  )
+                : null,
+            color: gradient.isEmpty ? backgroundColor : null,
             borderRadius: BorderRadius.circular(24),
-            boxShadow: [
+            boxShadow: const [
               BoxShadow(
-                color: color.withAlpha((0.18 * 255).round()),
-                blurRadius: 16,
-                offset: const Offset(0, 10),
+                color: Color.fromRGBO(0, 0, 0, 0.08),
+                blurRadius: 18,
+                offset: Offset(0, 8),
               ),
             ],
           ),
@@ -130,24 +132,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
             children: [
               CircleAvatar(
                 radius: 18,
-                backgroundColor: Colors.white.withAlpha((0.22 * 255).round()),
-                child: Icon(icon, color: Colors.white, size: 20),
+                backgroundColor: Colors.white.withOpacity(0.22),
+                child: Icon(icon, color: textColor, size: 20),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 18),
               Text(
                 title,
-                style: const TextStyle(
-                  color: Colors.white70,
-                  fontSize: 13,
+                style: TextStyle(
+                  color: textColor.withOpacity(0.85),
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               Text(
                 value,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
             ],
@@ -175,9 +178,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
         child: Container(
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
-            color: color.withAlpha((0.12 * 255).round()),
+            color: Colors.white,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: color.withAlpha((0.16 * 255).round())),
+            boxShadow: const [
+              BoxShadow(
+                color: Color.fromRGBO(0, 0, 0, 0.08),
+                blurRadius: 18,
+                offset: Offset(0, 8),
+              ),
+            ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -191,8 +200,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               Text(
                 title,
                 style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
               const SizedBox(height: 8),
@@ -227,7 +236,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             value: _activeMedicationsCount != null
                 ? '${_activeMedicationsCount!} active'
                 : 'Loading...',
-            color: AppColors.primary,
+            gradient: const [Color(0xFF5B67F1), Color(0xFF4A56E2)],
+            textColor: Colors.white,
             onTap: () {
               Navigator.of(context)
                   .pushNamed(AppRoutes.medications)
@@ -241,7 +251,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             value: _upcomingRemindersCount != null
                 ? '${_upcomingRemindersCount!} upcoming'
                 : 'Loading...',
-            color: AppColors.success,
+            gradient: const [Color(0xFF2BBF7B), Color(0xFF1D9D5A)],
+            textColor: Colors.white,
             onTap: () {
               Navigator.of(context)
                   .pushNamed(AppRoutes.reminders)
@@ -272,57 +283,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildResponsiveFeatureTiles(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final bool isWide = constraints.maxWidth >= 640;
-        final featureTiles = [
-          _buildFeatureTile(
-            context: context,
-            icon: Icons.add_circle_outline,
-            title: 'Add Medication',
-            subtitle: 'Quickly add a new dose',
-            color: AppColors.primary,
-            route: AppRoutes.addMedication,
-            isExpanded: false,
-          ),
-          _buildFeatureTile(
-            context: context,
-            icon: Icons.location_on_outlined,
-            title: 'Estimations',
-            subtitle: 'Nearby open pharmacies',
-            color: AppColors.accent,
-            route: AppRoutes.pharmacyMap,
-            isExpanded: false,
-          ),
-        ];
-
-        if (isWide) {
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(child: featureTiles[0]),
-              const SizedBox(width: 14),
-              Expanded(child: featureTiles[1]),
-            ],
-          );
-        }
-
-        return Column(
-          children: [
-            featureTiles[0],
-            const SizedBox(height: 16),
-            featureTiles[1],
-          ],
-        );
-      },
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -364,28 +329,82 @@ class _DashboardScreenState extends State<DashboardScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'Welcome!',
+                'Good Morning 👋',
                 style: TextStyle(
-                  fontSize: 28,
+                  fontSize: 34,
                   fontWeight: FontWeight.bold,
+                  color: Colors.black87,
                 ),
               ),
               const SizedBox(height: 8),
               const Text(
-                'Here is your daily health overview.',
+                'Today\'s Progress',
                 style: TextStyle(
                   fontSize: 16,
+                  fontWeight: FontWeight.w500,
                   color: Colors.black54,
                 ),
               ),
               const SizedBox(height: 24),
               _buildResponsiveSummaryCards(context),
               const SizedBox(height: 22),
-              _buildResponsiveFeatureTiles(context),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildFeatureTile(
+                      context: context,
+                      icon: Icons.add_circle_outline,
+                      title: 'Add Medication',
+                      subtitle: 'Quickly add a new dose',
+                      color: AppColors.primary,
+                      route: AppRoutes.addMedication,
+                      isExpanded: false,
+                    ),
+                    const SizedBox(height: 16),
+                    _buildFeatureTile(
+                      context: context,
+                      icon: Icons.access_time,
+                      title: 'Schedule Reminder',
+                      subtitle: 'Create your next alert',
+                      color: AppColors.success,
+                      route: AppRoutes.addReminder,
+                      isExpanded: false,
+                    ),
+                    const SizedBox(height: 16),
+                    _buildFeatureTile(
+                      context: context,
+                      icon: Icons.location_on_outlined,
+                      title: 'Find Pharmacy',
+                      subtitle: 'Nearby open pharmacies',
+                      color: AppColors.primary,
+                      route: AppRoutes.pharmacyMap,
+                      isExpanded: false,
+                    ),
+                    const SizedBox(height: 16),
+                    _buildFeatureTile(
+                      context: context,
+                      icon: Icons.show_chart,
+                      title: 'History',
+                      subtitle: 'View medical records',
+                      color: AppColors.accent,
+                      route: AppRoutes.medicalHistory,
+                      isExpanded: false,
+                    ),
+                  ],
+                ),
+              ),
               const SizedBox(height: 24),
             ],
           ),
         ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.of(context).pushNamed(AppRoutes.addMedication);
+        },
+        child: const Icon(Icons.add),
       ),
     );
   }
