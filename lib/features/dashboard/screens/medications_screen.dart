@@ -144,38 +144,67 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
     }
   }
 
+  Future<void> _updateMedicationSchedule(
+    Medication medication,
+    List<String> updatedTimes,
+  ) async {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null) return;
+
+    final updatedMedication = medication.copyWith(scheduleTimes: updatedTimes);
+    await _dbService.saveMedication(userId, updatedMedication);
+    if (mounted) {
+      setState(_loadMedications);
+    }
+  }
+
+  Future<void> _addScheduleTime(Medication medication) async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.now(),
+    );
+    if (picked == null) return;
+
+    final timeString =
+        '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
+    if (medication.scheduleTimes.contains(timeString)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('This time is already added.')),
+      );
+      return;
+    }
+
+    final updatedTimes = List<String>.from(medication.scheduleTimes)
+      ..add(timeString)
+      ..sort();
+
+    await _updateMedicationSchedule(medication, updatedTimes);
+  }
+
+  Future<void> _removeScheduleTime(
+    Medication medication,
+    String time,
+  ) async {
+    final updatedTimes = List<String>.from(medication.scheduleTimes)
+      ..remove(time);
+    await _updateMedicationSchedule(medication, updatedTimes);
+  }
+
   Widget _buildMedicationScheduleCard(Medication medication) {
-    return Card(
-      elevation: 0,
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          gradient: LinearGradient(
-            colors: [Colors.white, Colors.blue.withOpacity(0.02)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          border: Border.all(color: Colors.blue.withOpacity(0.1), width: 1),
-        ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Card(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        elevation: 2,
+        clipBehavior: Clip.antiAlias,
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header with medication name and type
             Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1565C0).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(Icons.medication,
-                        color: Color(0xFF1565C0), size: 24),
-                  ),
-                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -189,44 +218,12 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
                           ),
                         ),
                         const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF1565C0).withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                medication.type,
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFF1565C0),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: Colors.green.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                medication.isActive ? 'Active' : 'Inactive',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: medication.isActive
-                                      ? Colors.green
-                                      : Colors.grey,
-                                ),
-                              ),
-                            ),
-                          ],
+                        Text(
+                          medication.type,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey,
+                          ),
                         ),
                       ],
                     ),
@@ -275,7 +272,6 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
               ),
             ),
             const Divider(height: 1),
-            // Dosage and frequency info
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
@@ -303,9 +299,10 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
                 frequency: medication.frequency,
                 scheduleTimes: medication.scheduleTimes,
                 dosage: medication.dosage,
+                onAddTime: () => _addScheduleTime(medication),
+                onRemoveTime: (time) => _removeScheduleTime(medication, time),
               ),
             ),
-            // Additional info
             if (medication.prescribedBy != null ||
                 medication.pharmacyAddress != null) ...[
               const Divider(height: 1),

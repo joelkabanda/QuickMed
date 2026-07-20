@@ -8,8 +8,6 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:quickmed/models/medication_model.dart';
 import 'package:quickmed/services/database_service.dart';
 import 'package:quickmed/services/reminder_service.dart';
-import 'package:quickmed/features/dashboard/widgets/medication_schedule_card.dart';
-
 class AddMedicationScreen extends StatefulWidget {
   final Medication? medication;
 
@@ -468,29 +466,6 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
               _buildDosageCard(),
               const SizedBox(height: 24),
 
-              // Schedule Section
-              _buildSectionHeader('Schedule', Icons.schedule),
-              const SizedBox(height: 12),
-
-              // Frequency
-              _buildDropdown(
-                label: 'Frequency',
-                value: _selectedFrequency,
-                items: _frequencies,
-                onChanged: (value) {
-                  setState(() => _selectedFrequency = value);
-                },
-              ),
-              const SizedBox(height: 14),
-
-              // Schedule Times
-              MedicationScheduleCard(
-                frequency: _selectedFrequency,
-                scheduleTimes: _scheduleTimes,
-                dosage: _dosageController.text,
-                onAddTime: () => _selectTime(context, isReminder: false),
-                onRemoveTime: (time) => _removeTime(time, isReminder: false),
-              ),
               const SizedBox(height: 24),
 
               // Medical Details Section
