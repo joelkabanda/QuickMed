@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:async';
 import 'package:quickmed/constants/app_colors.dart';
 import 'package:quickmed/models/reminder_model.dart';
 import 'package:quickmed/services/database_service.dart';
+import 'package:quickmed/services/notification_service.dart';
+import 'package:quickmed/services/location_service.dart';
 import 'package:quickmed/routes/app_routes.dart';
 
 class RemindersScreen extends StatefulWidget {
@@ -14,21 +17,34 @@ class RemindersScreen extends StatefulWidget {
 
 class _RemindersScreenState extends State<RemindersScreen> {
   late DatabaseService _dbService;
-  late Future<List<Reminder>> _remindersFuture;
+  late Stream<List<Reminder>> _remindersStream;
+  final Set<String> _notifiedReminders = {};
+  Timer? _refreshTimer;
 
   @override
   void initState() {
     super.initState();
     _dbService = DatabaseService();
     _loadReminders();
+    NotificationService().init();
+    // Periodically refresh UI so time-until labels update in real-time
+    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
   }
 
   void _loadReminders() {
     final userId = FirebaseAuth.instance.currentUser?.uid;
     if (userId != null) {
-      _remindersFuture = _dbService.getUserReminders(userId);
+      _remindersStream = _dbService.streamUserReminders(userId);
     } else {
-      _remindersFuture = Future.error('User not authenticated');
+      _remindersStream = Stream.error('User not authenticated');
     }
   }
 
@@ -37,6 +53,14 @@ class _RemindersScreenState extends State<RemindersScreen> {
     if (userId == null) return;
 
     try {
+      // Cancel any scheduled notification for this reminder
+      try {
+        final notifId = reminderId.hashCode & 0x7fffffff;
+        await NotificationService().cancel(notifId);
+      } catch (e) {
+        // ignore
+      }
+
       await _dbService.deleteReminder(userId, reminderId);
       if (mounted) {
         setState(() {
@@ -125,7 +149,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
               spacing: 10,
               runSpacing: 10,
               children: [
-                _buildInfoChip('Time', _formatDateTime(reminder.reminderTime),
+                _buildInfoChip('Time', _timeUntilText(reminder.reminderTime),
                     AppColors.primary),
                 _buildInfoChip(
                     'Status', reminder.status.name, AppColors.success),
@@ -163,6 +187,54 @@ class _RemindersScreenState extends State<RemindersScreen> {
     return '${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-${dateTime.day.toString().padLeft(2, '0')} ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
   }
 
+  String _timeUntilText(DateTime dateTime) {
+    final diff = dateTime.difference(DateTime.now());
+    if (diff.inSeconds <= 0) return 'Now';
+    if (diff.inMinutes < 1) return '${diff.inSeconds}s';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m';
+    final hours = diff.inHours;
+    final mins = diff.inMinutes % 60;
+    if (mins == 0) return '${hours}h';
+    return '${hours}h ${mins}m';
+  }
+
+  Future<void> _maybeTriggerLocationNotifications(List<Reminder> reminders) async {
+    try {
+      final userId = FirebaseAuth.instance.currentUser?.uid;
+      if (userId == null) return;
+
+      final savedLocation = await DatabaseService().getSavedPharmacyLocation(userId);
+      if (savedLocation == null) return;
+
+      final position = await LocationService.getCurrentLocation();
+      final distanceKm = LocationService.calculateDistance(
+        position.latitude,
+        position.longitude,
+        savedLocation.latitude,
+        savedLocation.longitude,
+      );
+
+      // Trigger when within 1.5 km
+      const triggerDistanceKm = 1.5;
+
+      if (distanceKm <= triggerDistanceKm) {
+        final upcoming = reminders.where((r) => r.reminderTime.isAfter(DateTime.now()));
+        for (final r in upcoming) {
+          if (_notifiedReminders.contains(r.id)) continue;
+
+          await NotificationService().showNotification(
+            id: r.id.hashCode & 0x7fffffff,
+            title: _getReminderTitle(r),
+            body: r.notes ?? 'Time to take your medication',
+          );
+          _notifiedReminders.add(r.id);
+        }
+      }
+    } catch (e) {
+      // ignore - non-critical
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -184,8 +256,8 @@ class _RemindersScreenState extends State<RemindersScreen> {
         },
         child: const Icon(Icons.add),
       ),
-      body: FutureBuilder<List<Reminder>>(
-        future: _remindersFuture,
+      body: StreamBuilder<List<Reminder>>(
+        stream: _remindersStream,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -205,6 +277,9 @@ class _RemindersScreenState extends State<RemindersScreen> {
           }
 
           final reminders = snapshot.data ?? [];
+
+          // Try to trigger location-based notifications for nearby reminders.
+          _maybeTriggerLocationNotifications(reminders);
 
           if (reminders.isEmpty) {
             return Center(

@@ -3,6 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:quickmed/constants/app_colors.dart';
 import 'package:quickmed/models/reminder_model.dart';
 import 'package:quickmed/services/database_service.dart';
+import 'package:quickmed/services/location_service.dart';
+import 'package:quickmed/services/notification_service.dart';
 
 class AddReminderScreen extends StatefulWidget {
   const AddReminderScreen({super.key});
@@ -56,8 +58,9 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
       final userId = FirebaseAuth.instance.currentUser?.uid;
       if (userId == null) throw Exception('User not authenticated');
 
+      final id = DateTime.now().millisecondsSinceEpoch.toString();
       final reminder = Reminder(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        id: id,
         userId: userId,
         medicationId: _medicationIdController.text.trim(),
         reminderTime: _reminderTime!,
@@ -67,7 +70,31 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
         createdAt: DateTime.now(),
       );
 
+      // Save to Firestore first
       await DatabaseService().saveReminder(reminder);
+
+      final notificationDate = await _calculateTravelAlarmTime(reminder);
+
+      // Schedule local notification based on travel time or reminder time.
+      try {
+        if (notificationDate.isAfter(DateTime.now())) {
+          final notifId = id.hashCode & 0x7fffffff;
+          await NotificationService().scheduleNotification(
+            id: notifId,
+            title: 'Medication reminder',
+            body: _notesController.text.isNotEmpty
+                ? _notesController.text
+                : 'Time to take your medication',
+            scheduledDate: notificationDate,
+          );
+
+          // update reminder with notification id
+          final updated = reminder.copyWith(notificationId: notifId.toString());
+          await DatabaseService().saveReminder(updated);
+        }
+      } catch (e) {
+        // scheduling failed - continue silently
+      }
       if (mounted) {
         Navigator.of(context).pop(true);
       }
@@ -86,11 +113,46 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
     }
   }
 
+  Future<DateTime> _calculateTravelAlarmTime(Reminder reminder) async {
+    try {
+      final userId = FirebaseAuth.instance.currentUser?.uid;
+      if (userId == null) return reminder.reminderTime;
+
+      final savedLocation = await DatabaseService().getSavedPharmacyLocation(userId);
+      if (savedLocation == null) return reminder.reminderTime;
+
+      final position = await LocationService.getCurrentLocation();
+      final distanceKm = LocationService.calculateDistance(
+        position.latitude,
+        position.longitude,
+        savedLocation.latitude,
+        savedLocation.longitude,
+      );
+
+      final travelMinutes = LocationService.calculateEstimatedTimeMinutes(distanceKm);
+      final bufferMinutes = 10; // give extra time for traffic and delays
+      final travelAlarmTime = reminder.reminderTime.subtract(Duration(minutes: travelMinutes + bufferMinutes));
+
+      if (travelAlarmTime.isBefore(DateTime.now())) {
+        return DateTime.now().add(const Duration(seconds: 10));
+      }
+      return travelAlarmTime;
+    } catch (e) {
+      return reminder.reminderTime;
+    }
+  }
+
   @override
   void dispose() {
     _medicationIdController.dispose();
     _notesController.dispose();
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    NotificationService().init();
   }
 
   @override
