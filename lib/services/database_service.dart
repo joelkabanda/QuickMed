@@ -189,4 +189,19 @@ class DatabaseService {
       return null;
     });
   }
+
+  /// Stream reminders for a user (auto-updates when Firestore changes)
+  Stream<List<Reminder>> streamUserReminders(String userId) {
+    return _db
+        .collection('reminders')
+        .where('userId', isEqualTo: userId)
+        .snapshots()
+        .map((snapshot) {
+      final reminders = snapshot.docs
+          .map((doc) => Reminder.fromMap({...doc.data(), 'id': doc.id}))
+          .toList();
+      reminders.sort((a, b) => a.reminderTime.compareTo(b.reminderTime));
+      return reminders;
+    });
+  }
 }
