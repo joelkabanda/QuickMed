@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:quickmed/constants/app_colors.dart';
 import 'package:quickmed/features/authentication/services/auth_service.dart';
 import 'package:quickmed/routes/app_routes.dart';
 import 'package:quickmed/models/pharmacy_model.dart';
@@ -148,16 +149,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(24),
         onTap: onTap ??
             (route == null
                 ? null
                 : () => Navigator.of(context).pushNamed(route)),
         child: Container(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(20),
+            gradient: LinearGradient(
+              colors: [color.withOpacity(0.95), color.withOpacity(0.78)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: color.withOpacity(0.18),
+                blurRadius: 16,
+                offset: const Offset(0, 10),
+              ),
+            ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -165,24 +177,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
             children: [
               CircleAvatar(
                 radius: 18,
-                backgroundColor: Colors.white.withOpacity(0.2),
+                backgroundColor: Colors.white.withOpacity(0.22),
                 child: Icon(icon, color: Colors.white, size: 20),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               Text(
                 title,
                 style: const TextStyle(
                   color: Colors.white70,
-                  fontSize: 12,
+                  fontSize: 13,
                 ),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 8),
               Text(
                 value,
                 style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
             ],
@@ -204,14 +216,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final child = Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(20),
         onTap:
             route == null ? null : () => Navigator.of(context).pushNamed(route),
         child: Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(18),
+            color: color.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: color.withOpacity(0.16)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -221,20 +234,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 backgroundColor: color,
                 child: Icon(icon, color: Colors.white, size: 20),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 18),
               Text(
                 title,
                 style: const TextStyle(
                   fontSize: 16,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
               const SizedBox(height: 8),
               Text(
                 subtitle,
                 style: const TextStyle(
-                  color: Colors.black54,
-                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                  fontSize: 14,
                 ),
               ),
             ],
@@ -250,72 +263,106 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildResponsiveSummaryCards(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: _buildSummaryCard(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final bool isWide = constraints.maxWidth >= 640;
+        final summaryCards = [
+          _buildSummaryCard(
             context,
             icon: Icons.medication_liquid,
             title: 'Medication Schedules',
             value: _activeMedicationsCount != null
                 ? '${_activeMedicationsCount!} active'
                 : 'Loading...',
-            color: const Color(0xFF1565C0),
+            color: AppColors.primary,
             onTap: () {
               Navigator.of(context)
                   .pushNamed(AppRoutes.medications)
                   .then((_) => _loadDashboardCounts());
             },
           ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _buildSummaryCard(
+          _buildSummaryCard(
             context,
             icon: Icons.access_time,
             title: 'Reminders',
             value: _upcomingRemindersCount != null
                 ? '${_upcomingRemindersCount!} upcoming'
                 : 'Loading...',
-            color: const Color(0xFF2E7D32),
+            color: AppColors.success,
             onTap: () {
               Navigator.of(context)
                   .pushNamed(AppRoutes.reminders)
                   .then((_) => _loadDashboardCounts());
             },
           ),
-        ),
-      ],
+        ];
+
+        if (isWide) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: summaryCards[0]),
+              const SizedBox(width: 16),
+              Expanded(child: summaryCards[1]),
+            ],
+          );
+        }
+
+        return Column(
+          children: [
+            summaryCards[0],
+            const SizedBox(height: 16),
+            summaryCards[1],
+          ],
+        );
+      },
     );
   }
 
   Widget _buildResponsiveFeatureTiles(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: _buildFeatureTile(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final bool isWide = constraints.maxWidth >= 640;
+        final featureTiles = [
+          _buildFeatureTile(
             context: context,
             icon: Icons.add_circle_outline,
             title: 'Add Medication',
             subtitle: 'Quickly add a new dose',
-            color: const Color(0xFF1E88E5),
+            color: AppColors.primary,
             route: AppRoutes.addMedication,
             isExpanded: false,
           ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _buildFeatureTile(
+          _buildFeatureTile(
             context: context,
             icon: Icons.location_on_outlined,
             title: 'Estimations',
             subtitle: 'Nearby open pharmacies',
-            color: const Color(0xFFD32F2F),
+            color: AppColors.accent,
             route: AppRoutes.pharmacyMap,
             isExpanded: false,
           ),
-        ),
-      ],
+        ];
+
+        if (isWide) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: featureTiles[0]),
+              const SizedBox(width: 14),
+              Expanded(child: featureTiles[1]),
+            ],
+          );
+        }
+
+        return Column(
+          children: [
+            featureTiles[0],
+            const SizedBox(height: 16),
+            featureTiles[1],
+          ],
+        );
+      },
     );
   }
 

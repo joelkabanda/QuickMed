@@ -1,6 +1,14 @@
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
 
+/// Modernized Dashboard screen for QuickMed — v2.
+///
+/// Color strategy: one brand color (primary) instead of scattering
+/// blue/green/red as full card fills. All four cards share the same
+/// neutral white surface; color lives only in icon badges and, for the
+/// two stat cards, a soft tint background. This keeps the eye anchored
+/// instead of jumping between four unrelated saturated hues.
+
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
 
