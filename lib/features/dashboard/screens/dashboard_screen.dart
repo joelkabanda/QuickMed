@@ -15,6 +15,7 @@ import 'add_reminder_screen.dart';
 import 'location_picker_screen.dart';
 import 'reminders_screen.dart';
 import 'medications_screen.dart';
+import 'health_profile_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -107,7 +108,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     label: "My Health\nProfile",
                     icon: Icons.person_outline_rounded,
                     color: AppColors.primary,
-                    onTap: () {},
+                    onTap: () => _navigateTo(const HealthProfileScreen()),
                   ),
                 ],
               ),
