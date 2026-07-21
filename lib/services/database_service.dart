@@ -4,6 +4,7 @@ import '../models/user_model.dart';
 import '../models/user_profile_model.dart';
 import '../models/medication_model.dart';
 import '../models/reminder_model.dart';
+import 'notification_service.dart';
 
 class DatabaseService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -55,6 +56,17 @@ class DatabaseService {
     try {
       await _db.collection('reminders').doc(reminder.id).set(reminder.toMap());
       debugPrint("Reminder saved to Firestore successfully");
+
+      // Schedule local notification for this reminder (best-effort)
+      try {
+        // Avoid bringing flutter_local_notifications into a heavy dependency here
+        // import lazily
+        final ns = NotificationService();
+        await ns.scheduleReminder(reminder);
+      } catch (notifyErr) {
+        debugPrint('Failed to schedule local notification: $notifyErr');
+      }
+
     } catch (e) {
       debugPrint("Error saving reminder: $e");
       rethrow;
@@ -89,6 +101,11 @@ class DatabaseService {
       if (doc.exists && doc.data()?['userId'] == userId) {
         await docRef.delete();
         debugPrint("Reminder deleted successfully");
+        try {
+          await NotificationService().cancelReminder(reminderId);
+        } catch (cancelErr) {
+          debugPrint('Failed to cancel scheduled notification: $cancelErr');
+        }
       } else {
         throw Exception('Reminder not found or unauthorized');
       }
