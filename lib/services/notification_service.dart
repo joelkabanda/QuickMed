@@ -1,4 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_timezone/flutter_timezone.dart';
+import 'package:timezone/data/latest_all.dart' as tz;
+import 'package:timezone/timezone.dart' as tz;
 import 'dart:async';
 
 class NotificationService {
@@ -10,12 +14,64 @@ class NotificationService {
       FlutterLocalNotificationsPlugin();
 
   Future<void> init() async {
-    const android = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const ios = DarwinInitializationSettings();
-    await _plugin.initialize(const InitializationSettings(
-      android: android,
-      iOS: ios,
-    ));
+    try {
+      debugPrint("NotificationService: Initializing...");
+      tz.initializeTimeZones();
+      debugPrint("NotificationService: Timezones initialized");
+
+      final String timeZoneName = await FlutterTimezone.getLocalTimezone();
+      debugPrint("NotificationService: Device timezone: $timeZoneName");
+      tz.setLocalLocation(tz.getLocation(timeZoneName));
+      debugPrint("NotificationService: Local location set");
+
+      const android = AndroidInitializationSettings('@mipmap/ic_launcher');
+      const ios = DarwinInitializationSettings();
+      
+      bool? initialized = await _plugin.initialize(
+        const InitializationSettings(
+          android: android,
+          iOS: ios,
+        ),
+      );
+      debugPrint("NotificationService: Plugin initialized: $initialized");
+
+      // Create the notification channel for Android 8.0+
+      const channel = AndroidNotificationChannel(
+        'quickmed_reminders',
+        'Reminders',
+        description: 'Reminder notifications',
+        importance: Importance.max,
+        playSound: true,
+        enableVibration: true,
+      );
+
+      await _plugin
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>()
+          ?.createNotificationChannel(channel);
+      debugPrint("NotificationService: Notification channel created");
+
+      // Request permissions for Android 13+
+      debugPrint("NotificationService: Requesting notification permissions...");
+      final granted = await _plugin
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>()
+          ?.requestNotificationsPermission();
+      debugPrint("NotificationService: Notification permission granted: $granted");
+      
+      // Request exact alarm permission for Android 12+
+      debugPrint("NotificationService: Requesting exact alarm permissions...");
+      final alarmsGranted = await _plugin
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>()
+          ?.requestExactAlarmsPermission();
+      debugPrint("NotificationService: Exact alarm permission granted: $alarmsGranted");
+      
+      debugPrint("NotificationService: Initialization complete");
+    } catch (e, stack) {
+      debugPrint("NotificationService ERROR during init: $e");
+      debugPrint(stack.toString());
+    }
   }
 
   Future<void> showNotification({
@@ -58,13 +114,17 @@ class NotificationService {
 
     final iOSDetails = DarwinNotificationDetails();
 
-    await _plugin.schedule(
+    await _plugin.zonedSchedule(
       id,
       title,
       body,
-      scheduledDate,
+      tz.TZDateTime.from(scheduledDate, tz.local),
       NotificationDetails(android: androidDetails, iOS: iOSDetails),
-      androidAllowWhileIdle: allowWhileIdle,
+      androidScheduleMode: allowWhileIdle
+          ? AndroidScheduleMode.exactAllowWhileIdle
+          : AndroidScheduleMode.exact,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
     );
   }
 

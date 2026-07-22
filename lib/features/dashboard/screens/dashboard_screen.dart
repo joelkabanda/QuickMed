@@ -19,6 +19,7 @@ import 'location_picker_screen.dart';
 import 'reminders_screen.dart';
 import 'medications_screen.dart';
 import 'health_profile_screen.dart';
+import '../../../services/notification_service.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -52,6 +53,52 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  Future<void> _triggerTestNotifications() async {
+    debugPrint("DashboardScreen: _triggerTestNotifications called");
+    try {
+      final service = NotificationService();
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Testing: Initializing and scheduling...'),
+          duration: Duration(seconds: 4),
+        ),
+      );
+
+      await service.init(); // Ensure permissions are requested and timezone is set
+      debugPrint("DashboardScreen: Service init finished");
+      
+      final now = DateTime.now();
+
+      // 1. Immediate Notification
+      debugPrint("DashboardScreen: Sending immediate notification");
+      await service.showNotification(
+        id: 999,
+        title: 'QuickMed Active!',
+        body: 'Notifications are working! Scheduled ones will follow.',
+      );
+
+      // 2. Scheduled Notifications
+      debugPrint("DashboardScreen: Scheduling 5 notifications...");
+      for (int i = 1; i <= 5; i++) {
+        await service.scheduleNotification(
+          id: 1000 + i,
+          title: 'Scheduled Test #$i',
+          body: 'Reminder $i of 5. The app is working in the background!',
+          scheduledDate: now.add(Duration(seconds: i * 10)),
+        );
+      }
+      debugPrint("DashboardScreen: All test notifications scheduled");
+    } catch (e) {
+      debugPrint("DashboardScreen ERROR: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Test failed: $e')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -76,6 +123,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       6, // TODO: pull from medications state
                   onViewFullProfile: () =>
                       _navigateTo(const HealthProfileScreen()),
+                  onTriggerTestNotifications: _triggerTestNotifications,
                   onSignOut: () async {
                     await FirebaseAuth.instance.signOut();
                     if (context.mounted) {

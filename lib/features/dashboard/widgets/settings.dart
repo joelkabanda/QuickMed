@@ -10,6 +10,7 @@ class Settings extends StatelessWidget {
   final String bloodGroup;
   final int activeMedicationsCount;
   final VoidCallback onViewFullProfile;
+  final VoidCallback onTriggerTestNotifications;
   final VoidCallback onSignOut;
 
   const Settings({
@@ -19,6 +20,7 @@ class Settings extends StatelessWidget {
     required this.bloodGroup,
     required this.activeMedicationsCount,
     required this.onViewFullProfile,
+    required this.onTriggerTestNotifications,
     required this.onSignOut,
   });
 
@@ -29,6 +31,7 @@ class Settings extends StatelessWidget {
     required String bloodGroup,
     required int activeMedicationsCount,
     required VoidCallback onViewFullProfile,
+    required VoidCallback onTriggerTestNotifications,
     required VoidCallback onSignOut,
   }) {
     return showModalBottomSheet(
@@ -41,6 +44,7 @@ class Settings extends StatelessWidget {
         bloodGroup: bloodGroup,
         activeMedicationsCount: activeMedicationsCount,
         onViewFullProfile: onViewFullProfile,
+        onTriggerTestNotifications: onTriggerTestNotifications,
         onSignOut: onSignOut,
       ),
     );
@@ -154,6 +158,19 @@ class Settings extends StatelessWidget {
             onTap: () {
               Navigator.pop(context);
               onViewFullProfile();
+            },
+          ),
+
+          const Divider(height: 1),
+
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.notification_important_outlined, color: AppColors.accent),
+            title: const Text("Test Notifications (Next 60s)"),
+            trailing: const Icon(Icons.play_arrow_rounded),
+            onTap: () {
+              Navigator.pop(context);
+              onTriggerTestNotifications();
             },
           ),
 
