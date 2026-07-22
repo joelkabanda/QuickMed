@@ -98,6 +98,20 @@ class DatabaseService {
     }
   }
 
+  /// Update reminder status
+  Future<void> updateReminderStatus(String reminderId, ReminderStatus status) async {
+    try {
+      await _db.collection('reminders').doc(reminderId).update({
+        'status': status.toString().split('.').last,
+        'completedAt': status == ReminderStatus.taken ? DateTime.now().toIso8601String() : null,
+      });
+      debugPrint("Reminder status updated to $status");
+    } catch (e) {
+      debugPrint("Error updating reminder status: $e");
+      rethrow;
+    }
+  }
+
   /// Get a single medication
   Future<Medication?> getMedication(String userId, String medicationId) async {
     try {
@@ -187,6 +201,19 @@ class DatabaseService {
         );
       }
       return null;
+    });
+  }
+
+  /// Stream all medications for a user
+  Stream<List<Medication>> streamUserMedications(String userId) {
+    return _db
+        .collection('medications')
+        .where('userId', isEqualTo: userId)
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs
+          .map((doc) => Medication.fromMap({...doc.data(), 'id': doc.id}))
+          .toList();
     });
   }
 
