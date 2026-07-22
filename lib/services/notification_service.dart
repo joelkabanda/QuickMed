@@ -12,17 +12,27 @@ class NotificationService {
 
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
+  
+  bool _isInitialized = false;
 
   Future<void> init() async {
+    if (_isInitialized) return;
+    
     try {
       debugPrint("NotificationService: Initializing...");
       tz.initializeTimeZones();
       debugPrint("NotificationService: Timezones initialized");
 
-      final String timeZoneName = await FlutterTimezone.getLocalTimezone();
-      debugPrint("NotificationService: Device timezone: $timeZoneName");
-      tz.setLocalLocation(tz.getLocation(timeZoneName));
-      debugPrint("NotificationService: Local location set");
+      try {
+        final timeZoneInfo = await FlutterTimezone.getLocalTimezone();
+        final String timeZoneName = timeZoneInfo.identifier;
+        debugPrint("NotificationService: Device timezone: $timeZoneName");
+        tz.setLocalLocation(tz.getLocation(timeZoneName));
+        debugPrint("NotificationService: Local location set");
+      } catch (e) {
+        debugPrint("NotificationService: Could not get local timezone, falling back to UTC: $e");
+        tz.setLocalLocation(tz.getLocation('UTC'));
+      }
 
       const android = AndroidInitializationSettings('@mipmap/ic_launcher');
       const ios = DarwinInitializationSettings();
@@ -59,15 +69,22 @@ class NotificationService {
           ?.requestNotificationsPermission();
       debugPrint("NotificationService: Notification permission granted: $granted");
       
-      // Request exact alarm permission for Android 12+
+        // Request exact alarm permission for Android 12+
       debugPrint("NotificationService: Requesting exact alarm permissions...");
-      final alarmsGranted = await _plugin
-          .resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>()
-          ?.requestExactAlarmsPermission();
-      debugPrint("NotificationService: Exact alarm permission granted: $alarmsGranted");
+      final alarmsPlugin = _plugin.resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
+      
+      if (alarmsPlugin != null) {
+        final bool? hasPermission = await alarmsPlugin.canScheduleExactNotifications();
+        debugPrint("NotificationService: Has exact alarm permission: $hasPermission");
+        
+        if (hasPermission == false) {
+          await alarmsPlugin.requestExactAlarmsPermission();
+        }
+      }
       
       debugPrint("NotificationService: Initialization complete");
+      _isInitialized = true;
     } catch (e, stack) {
       debugPrint("NotificationService ERROR during init: $e");
       debugPrint(stack.toString());
@@ -103,6 +120,7 @@ class NotificationService {
     required String body,
     required DateTime scheduledDate,
     bool allowWhileIdle = true,
+    bool repeatDaily = true,
   }) async {
     final androidDetails = AndroidNotificationDetails(
       'quickmed_reminders',
@@ -110,21 +128,27 @@ class NotificationService {
       channelDescription: 'Reminder notifications',
       importance: Importance.max,
       priority: Priority.high,
+      fullScreenIntent: true,
     );
 
     final iOSDetails = DarwinNotificationDetails();
+
+    final tz.TZDateTime tzScheduledDate = tz.TZDateTime.from(scheduledDate, tz.local);
+    
+    debugPrint("NotificationService: Scheduling '$title' (ID: $id) for $tzScheduledDate (Local: $scheduledDate)");
 
     await _plugin.zonedSchedule(
       id,
       title,
       body,
-      tz.TZDateTime.from(scheduledDate, tz.local),
+      tzScheduledDate,
       NotificationDetails(android: androidDetails, iOS: iOSDetails),
       androidScheduleMode: allowWhileIdle
           ? AndroidScheduleMode.exactAllowWhileIdle
           : AndroidScheduleMode.exact,
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
+      matchDateTimeComponents: repeatDaily ? DateTimeComponents.time : null,
     );
   }
 

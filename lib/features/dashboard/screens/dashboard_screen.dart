@@ -19,6 +19,7 @@ import 'location_picker_screen.dart';
 import 'reminders_screen.dart';
 import 'medications_screen.dart';
 import 'health_profile_screen.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../../../services/notification_service.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -45,6 +46,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   String get _email => _currentUser?.email ?? "No email on file";
+
+  bool _showPermissionWarning = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkPermissions();
+  }
+
+  Future<void> _checkPermissions() async {
+    final alarmsPlugin = FlutterLocalNotificationsPlugin()
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+    
+    if (alarmsPlugin != null) {
+      final bool? hasAlarms = await alarmsPlugin.canScheduleExactNotifications();
+      if (hasAlarms == false && mounted) {
+        setState(() => _showPermissionWarning = true);
+      }
+    }
+  }
 
   void _navigateTo(Widget screen) {
     Navigator.push(
@@ -110,7 +132,55 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // only the changed pieces
+              if (_showPermissionWarning)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 20),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Colors.orange.withOpacity(0.5)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.warning_amber_rounded, color: Colors.orange),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Reminders are Restricted',
+                              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange),
+                            ),
+                            const Text(
+                              'Please enable "Alarms & Reminders" in system settings to receive on-time notifications.',
+                              style: TextStyle(fontSize: 12, color: Colors.black87),
+                            ),
+                            TextButton(
+                              onPressed: () async {
+                                final alarmsPlugin = FlutterLocalNotificationsPlugin()
+                                    .resolvePlatformSpecificImplementation<
+                                        AndroidFlutterLocalNotificationsPlugin>();
+                                await alarmsPlugin?.requestExactAlarmsPermission();
+                                // We check again if the permission was granted after returning from settings
+                                // Actually, requestExactAlarmsPermission returns once the intent is sent
+                                // We might want to re-check on app resume, but for now we re-check immediately
+                                _checkPermissions();
+                              },
+                              style: TextButton.styleFrom(
+                                padding: EdgeInsets.zero,
+                                minimumSize: const Size(0, 0),
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                              child: const Text('Open Settings'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
 
               GreetingHeader(
                 username: _username,
