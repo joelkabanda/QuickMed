@@ -1,6 +1,8 @@
 // lib/features/dashboard/screens/dashboard_screen.dart
 //Widgets
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../../authentication/screens/login_screen.dart';
 import '../../../constants/app_colors.dart';
 import '../widgets/greeting_header.dart';
 import '../widgets/quick_action_card.dart';
@@ -8,6 +10,7 @@ import '../widgets/med_wallet.dart';
 import '../widgets/reminder_tile.dart';
 import '../widgets/section_title.dart';
 import '../widgets/bottom_nav.dart';
+import '../widgets/settings.dart';
 
 //screens
 import 'add_medication_screen.dart';
@@ -27,9 +30,21 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   int _navIndex = 0;
 
-  // TODO: replace with the real signed-in user, e.g. from FirebaseAuth
-  // or your AuthProvider — this is just a placeholder wiring point.
-  final String _username = "Precious";
+  User? get _currentUser => FirebaseAuth.instance.currentUser;
+
+  String get _username {
+    final user = _currentUser;
+    if (user?.displayName != null && user!.displayName!.trim().isNotEmpty) {
+      return user.displayName!.split(' ').first; // first name only
+    }
+    if (user?.email != null) {
+      return user!.email!.split('@').first; // fallback: local part of email
+    }
+    return "there";
+  }
+
+  String get _email => _currentUser?.email ?? "No email on file";
+
   void _navigateTo(Widget screen) {
     Navigator.push(
       context,
@@ -48,9 +63,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // only the changed pieces
+
               GreetingHeader(
                 username: _username,
-                onNotificationTap: () {},
+                onSettingsTap: () => Settings.show(
+                  context,
+                  username: _username,
+                  email: _email,
+                  bloodGroup: "O+", // TODO: pull from health profile data
+                  activeMedicationsCount:
+                      6, // TODO: pull from medications state
+                  onViewFullProfile: () =>
+                      _navigateTo(const HealthProfileScreen()),
+                  onSignOut: () async {
+                    await FirebaseAuth.instance.signOut();
+                    if (context.mounted) {
+                      Navigator.of(context).pushAndRemoveUntil(
+                        MaterialPageRoute(builder: (_) => const LoginScreen()),
+                        (route) => false,
+                      );
+                    }
+                  },
+                ),
               ),
               const SizedBox(height: 22),
 

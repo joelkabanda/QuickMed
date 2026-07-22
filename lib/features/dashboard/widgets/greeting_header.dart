@@ -9,12 +9,12 @@ class GreetingHeader extends StatelessWidget {
   /// e.g. FirebaseAuth.instance.currentUser?.displayName,
   /// or a value pulled from your UserProvider / AuthController.
   final String username;
-  final VoidCallback? onNotificationTap;
+  final VoidCallback? onSettingsTap;
 
   const GreetingHeader({
     super.key,
     required this.username,
-    this.onNotificationTap,
+    this.onSettingsTap,
   });
 
   @override
@@ -51,7 +51,7 @@ class GreetingHeader extends StatelessWidget {
         ),
         const SizedBox(width: 12),
         InkWell(
-          onTap: onNotificationTap,
+          onTap: onSettingsTap,
           borderRadius: BorderRadius.circular(24),
           child: Container(
             height: 48,
@@ -64,7 +64,7 @@ class GreetingHeader extends StatelessWidget {
               alignment: Alignment.center,
               children: [
                 Icon(
-                  Icons.notifications_none_rounded,
+                  Icons.settings_outlined,
                   color: AppColors.primary,
                   size: 24,
                 ),
