@@ -99,7 +99,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                   width: 48,
                   height: 48,
                   decoration: BoxDecoration(
-                    color: AppColors.success.withOpacity(0.12),
+                    color: AppColors.success.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: const Icon(Icons.notifications_active,
@@ -165,7 +165,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
 
   Widget _buildInfoChip(String label, String value, Color color) {
     return Chip(
-      backgroundColor: color.withOpacity(0.14),
+      backgroundColor: color.withValues(alpha: 0.14),
       label: Text(
         '$label: $value',
         style: TextStyle(
@@ -342,7 +342,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                   child: Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: AppColors.success.withOpacity(0.12),
+                      color: AppColors.success.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(16),
                     ),
                     child: Row(
@@ -363,7 +363,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                 ),
               ...reminders
                   .map((reminder) => _buildReminderCard(reminder))
-                  .toList(),
+                  ,
             ],
           );
         },

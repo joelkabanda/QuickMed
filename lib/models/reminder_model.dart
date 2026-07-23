@@ -1,4 +1,5 @@
 /// Reminder Models
+library;
 
 enum ReminderStatus { pending, taken, missed, skipped }
 

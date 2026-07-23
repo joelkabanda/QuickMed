@@ -1,4 +1,5 @@
 /// Models Barrel File
+library;
 export 'user_model.dart';
 export 'medication_model.dart';
 export 'reminder_model.dart';

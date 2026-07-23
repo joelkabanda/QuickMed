@@ -71,9 +71,9 @@ class ReminderTile extends StatelessWidget {
 
               color: completed
 
-                  ? AppColors.success.withOpacity(0.12)
+                  ? AppColors.success.withValues(alpha: 0.12)
 
-                  : AppColors.warning.withOpacity(0.12),
+                  : AppColors.warning.withValues(alpha: 0.12),
 
 
               borderRadius: BorderRadius.circular(14),
@@ -180,9 +180,9 @@ class ReminderTile extends StatelessWidget {
 
               color: completed
 
-                  ? AppColors.success.withOpacity(0.12)
+                  ? AppColors.success.withValues(alpha: 0.12)
 
-                  : AppColors.warning.withOpacity(0.12),
+                  : AppColors.warning.withValues(alpha: 0.12),
 
 
               borderRadius: BorderRadius.circular(20),

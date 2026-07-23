@@ -3,7 +3,6 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:quickmed/services/location_service.dart';
 import 'package:quickmed/models/user_profile_model.dart';
-import 'package:geolocator/geolocator.dart';
 
 class LocationPickerScreen extends StatefulWidget {
   final SavedPharmacyLocation? initialLocation;

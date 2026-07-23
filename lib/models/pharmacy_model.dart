@@ -1,4 +1,5 @@
 /// Pharmacy Models
+library;
 
 class Pharmacy {
   final String id;

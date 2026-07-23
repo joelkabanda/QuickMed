@@ -167,7 +167,7 @@ class DashboardScreen extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: action.color.withOpacity(0.12),
+                      color: action.color.withValues(alpha: 0.12),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(action.icon, color: action.color, size: 28),

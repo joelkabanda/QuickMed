@@ -16,7 +16,6 @@ import '../widgets/settings.dart';
 import 'add_medication_screen.dart';
 import 'add_reminder_screen.dart';
 import 'location_picker_screen.dart';
-import 'reminders_screen.dart';
 import 'medications_screen.dart';
 import 'health_profile_screen.dart';
 

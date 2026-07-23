@@ -1,4 +1,5 @@
 /// Authentication Models
+library;
 
 class User {
   final String id;

@@ -1,4 +1,5 @@
 /// User Profile Model
+library;
 
 class SavedPharmacyLocation {
   final String pharmacyId;

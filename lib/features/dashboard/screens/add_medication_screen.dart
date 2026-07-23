@@ -235,10 +235,10 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
       if (detectedName != null || detectedDosage != null) {
         setState(() {
           if (detectedName != null) {
-            _nameController.text = detectedName!;
+            _nameController.text = detectedName;
           }
           if (detectedDosage != null) {
-            _dosageController.text = detectedDosage!;
+            _dosageController.text = detectedDosage;
           }
         });
         if (mounted) {
@@ -398,7 +398,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
+                        color: Colors.white.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: const Icon(Icons.medication,
@@ -423,7 +423,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                           Text(
                             'Fill in the details below',
                             style: TextStyle(
-                              color: Colors.white.withOpacity(0.8),
+                              color: Colors.white.withValues(alpha: 0.8),
                               fontSize: 13,
                             ),
                           ),
@@ -568,7 +568,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                   borderRadius: BorderRadius.circular(10),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF388E3C).withOpacity(0.3),
+                      color: const Color(0xFF388E3C).withValues(alpha: 0.3),
                       blurRadius: 8,
                       offset: const Offset(0, 4),
                     ),
@@ -628,7 +628,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.blue.withOpacity(0.2)),
+        border: Border.all(color: Colors.blue.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -840,9 +840,9 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.blue.withOpacity(0.3)),
+        border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
         borderRadius: BorderRadius.circular(12),
-        color: Colors.blue.withOpacity(0.05),
+        color: Colors.blue.withValues(alpha: 0.05),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -875,7 +875,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.grey.withOpacity(0.3)),
+              border: Border.all(color: Colors.grey.withValues(alpha: 0.3)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -913,7 +913,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
         Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: const Color(0xFF1565C0).withOpacity(0.1),
+            color: const Color(0xFF1565C0).withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(icon, color: const Color(0xFF1565C0), size: 20),

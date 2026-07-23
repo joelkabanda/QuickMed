@@ -1,4 +1,5 @@
 /// Location and Maps Models
+library;
 
 class Location {
   final String id;

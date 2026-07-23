@@ -1,4 +1,5 @@
 /// Settings Model
+library;
 
 class AppSettings {
   final String userId;

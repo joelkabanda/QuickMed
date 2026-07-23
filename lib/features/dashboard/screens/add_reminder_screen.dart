@@ -211,7 +211,7 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
             const Text('Status', style: TextStyle(fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
             DropdownButtonFormField<ReminderStatus>(
-              value: _status,
+              initialValue: _status,
               decoration: InputDecoration(
                 border:
                     OutlineInputBorder(borderRadius: BorderRadius.circular(14)),

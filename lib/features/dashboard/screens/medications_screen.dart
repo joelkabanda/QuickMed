@@ -380,7 +380,7 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
                 borderRadius: BorderRadius.circular(8),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF2E7D32).withOpacity(0.2),
+                    color: const Color(0xFF2E7D32).withValues(alpha: 0.2),
                     blurRadius: 4,
                     offset: const Offset(0, 2),
                   ),
@@ -402,7 +402,7 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
                     dosage,
                     style: TextStyle(
                       fontSize: 11,
-                      color: Colors.white.withOpacity(0.9),
+                      color: Colors.white.withValues(alpha: 0.9),
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -519,8 +519,8 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
                     denied ? Icons.lock_outline : Icons.error_outline,
                     size: 48,
                     color: denied
-                        ? Colors.orange.withOpacity(0.8)
-                        : Colors.red.withOpacity(0.7),
+                        ? Colors.orange.withValues(alpha: 0.8)
+                        : Colors.red.withValues(alpha: 0.7),
                   ),
                   const SizedBox(height: 16),
                   Text(
@@ -564,13 +564,13 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
                   Container(
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF1565C0).withOpacity(0.1),
+                      color: const Color(0xFF1565C0).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Icon(
                       Icons.medication,
                       size: 64,
-                      color: const Color(0xFF1565C0).withOpacity(0.5),
+                      color: const Color(0xFF1565C0).withValues(alpha: 0.5),
                     ),
                   ),
                   const SizedBox(height: 20),
