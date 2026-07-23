@@ -34,18 +34,22 @@ class _MedWalletCardState extends State<MedWalletCard> {
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(26),
-        gradient: LinearGradient(
-          colors: [AppColors.primary, AppColors.primaryDark],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+      borderRadius: BorderRadius.circular(26),
+      gradient: LinearGradient(
+        colors: [AppColors.primary, AppColors.primaryDark],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ),
+      border: Border.all(
+        color: Colors.white.withValues(alpha: 0.08), // faint glass-edge highlight
+        width: 1,
+      ),
+      boxShadow: [
+        BoxShadow(
+          color: AppColors.primary.withValues(alpha: 0.28),
+          blurRadius: 24,
+          offset: const Offset(0, 12),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primary.withValues(alpha: 0.28),
-            blurRadius: 24,
-            offset: const Offset(0, 12),
-          ),
         ],
       ),
       child: Column(

@@ -6,6 +6,7 @@ import 'package:quickmed/routes/index.dart';
 import 'package:quickmed/services/location_service.dart';
 import 'package:quickmed/features/dashboard/widgets/location_permission_dialog.dart';
 import 'package:geolocator/geolocator.dart';
+import '../widgets/auth_theme.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -54,7 +55,7 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<void> _checkLocationPermission() async {
     try {
       final permission = await LocationService.checkLocationPermission();
-      
+
       if (!mounted) return;
 
       if (permission == LocationPermission.denied) {
@@ -92,75 +93,118 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1565C0),
-      body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 30),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Logo Container
-                Container(
-                  height: 120,
-                  width: 120,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(30),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: .15),
-                        blurRadius: 25,
-                        offset: const Offset(0, 10),
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [AuthColors.tealDark, AuthColors.teal],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: SafeArea(
+          child: Stack(
+            children: [
+              // Decorative soft blobs, matching the auth header's motif
+              Positioned(
+                top: -40,
+                right: -30,
+                child: _blob(140, Colors.white.withValues(alpha: 0.06)),
+              ),
+              Positioned(
+                top: 100,
+                left: -50,
+                child: _blob(100, Colors.white.withValues(alpha: 0.05)),
+              ),
+              Positioned(
+                bottom: -60,
+                right: -40,
+                child: _blob(160, Colors.white.withValues(alpha: 0.06)),
+              ),
+              Positioned(
+                bottom: 60,
+                left: -30,
+                child: _blob(90, Colors.white.withValues(alpha: 0.05)),
+              ),
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 30),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // Logo Container
+                      Container(
+                        height: 120,
+                        width: 120,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(30),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: .15),
+                              blurRadius: 25,
+                              offset: const Offset(0, 10),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.medication_rounded,
+                          size: 65,
+                          color: AuthColors.teal,
+                        ),
+                      ),
+
+                      const SizedBox(height: 35),
+
+                      const Text(
+                        "QuickMed",
+                        style: TextStyle(
+                          fontSize: 34,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          letterSpacing: 1,
+                        ),
+                      ),
+
+                      const SizedBox(height: 10),
+
+                      const Text(
+                        "Your Smart Medication Companion",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.white70,
+                          letterSpacing: .5,
+                        ),
+                      ),
+
+                      const SizedBox(height: 60),
+
+                      const SizedBox(
+                        height: 35,
+                        width: 35,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 3,
+                          color: Colors.white,
+                        ),
                       ),
                     ],
                   ),
-                  child: const Icon(
-                    Icons.medication_rounded,
-                    size: 65,
-                    color: Color(0xFF1565C0),
-                  ),
                 ),
-
-                const SizedBox(height: 35),
-
-                const Text(
-                  "Quick Med",
-                  style: TextStyle(
-                    fontSize: 34,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    letterSpacing: 1,
-                  ),
-                ),
-
-                const SizedBox(height: 10),
-
-                const Text(
-                  "Your Smart Medication Companion",
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.white70,
-                    letterSpacing: .5,
-                  ),
-                ),
-
-                const SizedBox(height: 60),
-
-                const SizedBox(
-                  height: 35,
-                  width: 35,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 3,
-                    color: Colors.white,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _blob(double size, Color color) {
+    return Container(
+      height: size,
+      width: size,
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
     );
   }
 }

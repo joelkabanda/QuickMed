@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 class AppColors {
   AppColors._();
 
-  // Brand — single primary, used deliberately
-  static const Color primary = Color(0xFF3B5FE0);
-  static const Color primaryDark = Color(0xFF2A46B8);
-  static const Color primaryTint = Color(0xFFEDF1FD);
+  // Brand — teal, matching the auth flow's AuthColors palette
+  static const Color primary = Color(0xFF00A388);
+  static const Color primaryDark = Color(0xFF00795F);
+  static const Color primaryTint = Color(0xFFE0F5F1);
 
   // Neutrals
   static const Color background = Color(0xFFF6F7FB);
@@ -23,8 +23,7 @@ class AppColors {
   static const Color danger = Color(0xFFD6455A); // missed/overdue
   static const Color dangerTint = Color(0xFFFCEAEC);
 
-  // A secondary accent for non-alert, non-primary highlights
-  // (used for Estimations
-  static const Color accent = Color(0xFF0F9B8E); // teal
+
+  static const Color accent = Color(0xFF33B79E); // lighter jade
   static const Color accentTint = Color(0xFFE4F6F4);
 }

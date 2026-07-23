@@ -32,8 +32,88 @@
 
   <title>quickmed</title>
   <link rel="manifest" href="manifest.json">
+
+  <style>
+    /* Matches AuthColors.tealDark (#0E5850) -> AuthColors.teal (#14746A) */
+    #app-preloader {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #0E5850, #14746A);
+      transition: opacity 0.35s ease;
+    }
+
+    #app-preloader.fade-out {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .preloader-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .preloader-logo {
+      height: 96px;
+      width: 96px;
+      border-radius: 24px;
+      background: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+      margin-bottom: 24px;
+    }
+
+    .preloader-logo svg {
+      width: 52px;
+      height: 52px;
+      fill: #14746A;
+    }
+
+    .preloader-title {
+      color: #ffffff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      margin-bottom: 28px;
+    }
+
+    .preloader-spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid rgba(255, 255, 255, 0.35);
+      border-top-color: #ffffff;
+      border-radius: 50%;
+      animation: preloader-spin 0.8s linear infinite;
+    }
+
+    @keyframes preloader-spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
 </head>
 <body>
+  <!-- Static loader shown instantly, before the Flutter engine boots.
+       Removed once Flutter's own SplashScreen renders its first frame. -->
+  <div id="app-preloader">
+    <div class="preloader-content">
+      <div class="preloader-logo">
+        <!-- Simple pill/medication icon, no external asset dependency -->
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M4.22 11.29l7.07-7.07a5 5 0 117.07 7.07l-7.07 7.07a5 5 0 01-7.07-7.07zm1.41 1.42a3 3 0 004.24 4.24l2.12-2.13-4.24-4.24-2.12 2.13zm3.54-3.54l4.24 4.24 2.12-2.12a3 3 0 10-4.24-4.24l-2.12 2.12z"/>
+        </svg>
+      </div>
+      <div class="preloader-title">QuickMed</div>
+      <div class="preloader-spinner"></div>
+    </div>
+  </div>
+
   <!--
     You can customize the "flutter_bootstrap.js" script.
     This is useful to provide a custom configuration to the Flutter loader
@@ -43,5 +123,20 @@
     * https://docs.flutter.dev/platform-integration/web/initialization
   -->
   <script src="flutter_bootstrap.js" async></script>
+
+  <script>
+    // Flutter dispatches this event once the engine has rendered its
+    // first real frame (i.e. your SplashScreen widget is now visible).
+    // At that point it's safe to fade out and remove the static loader.
+    window.addEventListener('flutter-first-frame', function () {
+      var preloader = document.getElementById('app-preloader');
+      if (preloader) {
+        preloader.classList.add('fade-out');
+        setTimeout(function () {
+          preloader.remove();
+        }, 400);
+      }
+    });
+  </script>
 </body>
 </html>

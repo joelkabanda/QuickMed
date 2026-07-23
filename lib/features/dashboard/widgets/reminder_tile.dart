@@ -19,18 +19,15 @@ class ReminderTile extends StatelessWidget {
     this.onTap,
   });
 
-  // Central place mapping each status to its color + icon.
-  // If your AppColors doesn't have `error` or a neutral gray defined,
-  // swap the fallback Colors.* values below for whatever you use elsewhere.
   Color get _statusColor {
     switch (status) {
       case "Completed":
       case "taken":
         return AppColors.success;
       case "Missed":
-        return Colors.redAccent; // TODO: swap for AppColors.error if defined
+        return AppColors.danger;
       case "Skipped":
-        return Colors.blueGrey; // TODO: swap for an AppColors neutral if defined
+        return AppColors.textSecondary;
       case "Pending":
       default:
         return AppColors.warning;
