@@ -1,5 +1,6 @@
-import 'package:flutter/material.dart';
+// lib/features/dashboard/widgets/reminder_tile.dart
 
+import 'package:flutter/material.dart';
 import '../../../constants/app_colors.dart';
 
 class ReminderTile extends StatelessWidget {
@@ -18,9 +19,42 @@ class ReminderTile extends StatelessWidget {
     this.onTap,
   });
 
+  // Central place mapping each status to its color + icon.
+  // If your AppColors doesn't have `error` or a neutral gray defined,
+  // swap the fallback Colors.* values below for whatever you use elsewhere.
+  Color get _statusColor {
+    switch (status) {
+      case "Completed":
+      case "taken":
+        return AppColors.success;
+      case "Missed":
+        return Colors.redAccent; // TODO: swap for AppColors.error if defined
+      case "Skipped":
+        return Colors.blueGrey; // TODO: swap for an AppColors neutral if defined
+      case "Pending":
+      default:
+        return AppColors.warning;
+    }
+  }
+
+  IconData get _statusIcon {
+    switch (status) {
+      case "Completed":
+      case "taken":
+        return Icons.check_circle_outline;
+      case "Missed":
+        return Icons.cancel_outlined;
+      case "Skipped":
+        return Icons.skip_next_outlined;
+      case "Pending":
+      default:
+        return Icons.access_time_rounded;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final bool completed = status == "Completed" || status == "taken";
+    final color = _statusColor;
 
     return InkWell(
       onTap: onTap,
@@ -30,9 +64,7 @@ class ReminderTile extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: AppColors.border,
-          ),
+          border: Border.all(color: AppColors.border),
         ),
         child: Row(
           children: [
@@ -40,18 +72,10 @@ class ReminderTile extends StatelessWidget {
               height: 48,
               width: 48,
               decoration: BoxDecoration(
-                color: completed
-                    ? AppColors.success.withValues(alpha: 0.12)
-                    : AppColors.warning.withValues(alpha: 0.12),
+                color: color.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: Icon(
-                completed
-                    ? Icons.check_circle_outline
-                    : Icons.access_time_rounded,
-                color: completed ? AppColors.success : AppColors.warning,
-                size: 26,
-              ),
+              child: Icon(_statusIcon, color: color, size: 26),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -78,14 +102,9 @@ class ReminderTile extends StatelessWidget {
               ),
             ),
             Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 10,
-                vertical: 6,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: completed
-                    ? AppColors.success.withOpacity(0.12)
-                    : AppColors.warning.withOpacity(0.12),
+                color: color.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
@@ -93,7 +112,7 @@ class ReminderTile extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: completed ? AppColors.success : AppColors.warning,
+                  color: color,
                 ),
               ),
             ),
