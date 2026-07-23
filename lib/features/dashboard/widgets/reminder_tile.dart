@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../../constants/app_colors.dart';
 
-
 class ReminderTile extends StatelessWidget {
   final String medicineName;
   final String dosage;
@@ -100,88 +99,7 @@ class ReminderTile extends StatelessWidget {
             ),
           ],
         ),
-
-                ),
-
-
-
-                const SizedBox(height: 5),
-
-
-
-                Text(
-
-                  "$dosage • $time",
-
-                  style: TextStyle(
-
-                    fontSize: 13,
-
-                    color: AppColors.textSecondary,
-
-                  ),
-
-                ),
-
+      ),
+    );
   }
 }
-
-//           ),
-
-
-
-
-//           Container(
-
-//             padding: const EdgeInsets.symmetric(
-
-//               horizontal: 10,
-
-//               vertical: 6,
-
-//             ),
-
-
-//             decoration: BoxDecoration(
-
-//               color: completed
-
-//                   ? AppColors.success.withValues(alpha: 0.12)
-
-//                   : AppColors.warning.withValues(alpha: 0.12),
-
-
-//               borderRadius: BorderRadius.circular(20),
-
-//             ),
-
-
-//             child: Text(
-
-//               status,
-
-//               style: TextStyle(
-
-//                 fontSize: 12,
-
-//                 fontWeight: FontWeight.w600,
-
-//                 color: completed
-
-//                     ? AppColors.success
-
-//                     : AppColors.warning,
-
-//               ),
-
-//             ),
-
-//           ),
-
-
-//         ],
-
-//       ),
-//     );
-//   }
-// }
