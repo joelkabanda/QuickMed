@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../authentication/screens/login_screen.dart';
 import '../../../constants/app_colors.dart';
+import '../../../models/reminder_model.dart';
+import '../../../models/medication_model.dart';
+import '../../../services/database_service.dart';
 import 'greeting_header.dart';
 import 'quick_action_card.dart';
 import 'med_wallet.dart';
@@ -39,8 +42,31 @@ class DashboardHomeContent extends StatelessWidget {
     Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
   }
 
+  String _statusLabel(ReminderStatus status) {
+    switch (status) {
+      case ReminderStatus.taken:
+        return "Completed";
+      case ReminderStatus.missed:
+        return "Missed";
+      case ReminderStatus.skipped:
+        return "Skipped";
+      case ReminderStatus.pending:
+        return "Pending";
+    }
+  }
+
+  String _formatTime(DateTime time) {
+    final hour = time.hour % 12 == 0 ? 12 : time.hour % 12;
+    final minute = time.minute.toString().padLeft(2, '0');
+    final period = time.hour >= 12 ? "PM" : "AM";
+    return "$hour:$minute $period";
+  }
+
   @override
   Widget build(BuildContext context) {
+    final userId = _currentUser?.uid;
+    final dbService = DatabaseService();
+
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
       child: Column(
@@ -137,19 +163,82 @@ class DashboardHomeContent extends StatelessWidget {
           const SectionTitle(title: "Upcoming Reminders"),
           const SizedBox(height: 12),
 
-          const ReminderTile(
-            medicineName: "Amoxicillin",
-            dosage: "500mg",
-            time: "08:00 AM",
-            status: "Pending",
-          ),
-          const SizedBox(height: 10),
-          const ReminderTile(
-            medicineName: "Vitamin D",
-            dosage: "1 tablet",
-            time: "06:00 PM",
-            status: "Completed",
-          ),
+          if (userId == null)
+            const Text(
+              "Sign in to see your reminders.",
+              style: TextStyle(color: AppColors.textSecondary),
+            )
+          else
+            StreamBuilder<List<Medication>>(
+              stream: dbService.streamUserMedications(userId),
+              builder: (context, medSnapshot) {
+                final medById = <String, Medication>{
+                  for (final m in medSnapshot.data ?? <Medication>[]) m.id: m,
+                };
+
+                return StreamBuilder<List<Reminder>>(
+                  stream: dbService.streamUserReminders(userId),
+                  builder: (context, remSnapshot) {
+                    if (remSnapshot.connectionState ==
+                            ConnectionState.waiting &&
+                        !remSnapshot.hasData) {
+                      return const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 20),
+                        child: Center(child: CircularProgressIndicator()),
+                      );
+                    }
+
+                    if (remSnapshot.hasError) {
+                      return Text(
+                        "Couldn't load reminders.",
+                        style: TextStyle(color: AppColors.textSecondary),
+                      );
+                    }
+
+                    final now = DateTime.now();
+                    final upcoming = (remSnapshot.data ?? <Reminder>[])
+                        .where((r) => r.reminderTime.isAfter(now))
+                        .toList()
+                      ..sort(
+                          (a, b) => a.reminderTime.compareTo(b.reminderTime));
+
+                    final preview = upcoming.take(3).toList();
+
+                    if (preview.isEmpty) {
+                      return Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: Text(
+                          "No upcoming reminders. You're all caught up.",
+                          style: TextStyle(color: AppColors.textSecondary),
+                        ),
+                      );
+                    }
+
+                    return Column(
+                      children: [
+                        for (final reminder in preview) ...[
+                          ReminderTile(
+                            medicineName:
+                                medById[reminder.medicationId]?.name ??
+                                    "Medication",
+                            dosage:
+                                medById[reminder.medicationId]?.dosage ?? "",
+                            time: _formatTime(reminder.reminderTime),
+                            status: _statusLabel(reminder.status),
+                          ),
+                          const SizedBox(height: 10),
+                        ],
+                      ],
+                    );
+                  },
+                );
+              },
+            ),
 
           const SizedBox(height: 100),
         ],
