@@ -42,9 +42,9 @@ class MedBottomNav extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               _navItem(Icons.home_rounded, "Home", 0, iconSize, fontSize),
-              _navItem(Icons.local_pharmacy_outlined, "Pharmacy", 1, iconSize, fontSize),
+              _navItem(Icons.local_pharmacy_outlined, "Routes", 1, iconSize, fontSize),
               _scanButton(scanSize, fontSize),
-              _navItem(Icons.history_rounded, "History", 2, iconSize, fontSize),
+              _navItem(Icons.history_rounded, "Reminders", 2, iconSize, fontSize),
               _navItem(Icons.more_horiz_rounded, "More", 3, iconSize, fontSize),
             ],
           ),
