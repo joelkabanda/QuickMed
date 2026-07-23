@@ -166,7 +166,7 @@ class Settings extends StatelessWidget {
           ListTile(
             contentPadding: EdgeInsets.zero,
             leading: Icon(Icons.notification_important_outlined, color: AppColors.accent),
-            title: const Text("Test Notifications (Next 60s)"),
+            title: const Text("Notifications"),
             trailing: const Icon(Icons.play_arrow_rounded),
             onTap: () {
               Navigator.pop(context);
