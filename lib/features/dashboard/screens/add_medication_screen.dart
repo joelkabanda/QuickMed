@@ -322,26 +322,34 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
       final dbService = DatabaseService();
       await dbService.saveMedication(userId, medication);
 
-      final leadTimeMinutes = await ReminderService.estimateLeadTimeMinutesForAddress(
-        _pharmacyAddressController.text.isEmpty
-            ? null
-            : _pharmacyAddressController.text,
-      );
+      // Use leadTime 0 for "at-time" reminders as requested
       final generatedReminders = ReminderService.buildRemindersForMedication(
         userId: userId,
         medication: medication,
-        leadTimeMinutes: leadTimeMinutes,
+        leadTimeMinutes: 0, 
       );
 
       for (final reminder in generatedReminders) {
         await dbService.saveReminder(reminder);
       }
+      
+      // Schedule system notifications for all new reminders
+      await ReminderService.scheduleSystemNotifications(generatedReminders);
 
       if (mounted) {
+        String scheduleMsg = 'Medication added.';
+        if (generatedReminders.isNotEmpty) {
+          final firstTime = generatedReminders.first.reminderTime;
+          final timeStr = "${firstTime.hour.toString().padLeft(2, '0')}:${firstTime.minute.toString().padLeft(2, '0')}";
+          scheduleMsg += " First reminder scheduled for $timeStr.";
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text(
-                  '${widget.medication == null ? 'Medication added' : 'Medication updated'} successfully')),
+            content: Text(scheduleMsg),
+            duration: const Duration(seconds: 5),
+            backgroundColor: Colors.green,
+          ),
         );
         Navigator.pop(context, medication);
       }
@@ -466,6 +474,10 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
               _buildDosageCard(),
               const SizedBox(height: 24),
 
+              // Medication Schedule Section
+              _buildSectionHeader('Medication Schedule', Icons.access_time),
+              const SizedBox(height: 12),
+              _buildScheduleTimesSection(),
               const SizedBox(height: 24),
 
               // Medical Details Section
@@ -902,6 +914,60 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScheduleTimesSection() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'When will you take this medication?',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: Colors.black54,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              ..._scheduleTimes.map((time) => Chip(
+                    label: Text(time,
+                        style: const TextStyle(fontWeight: FontWeight.bold)),
+                    onDeleted: () => _removeTime(time, isReminder: false),
+                    deleteIconColor: Colors.red,
+                    backgroundColor: Colors.blue.withOpacity(0.1),
+                    side: BorderSide(color: Colors.blue.withOpacity(0.2)),
+                  )),
+              ActionChip(
+                avatar: const Icon(Icons.add, size: 18),
+                label: const Text('Add Time'),
+                onPressed: () => _selectTime(context, isReminder: false),
+                backgroundColor: Colors.blue,
+                labelStyle: const TextStyle(color: Colors.white),
+              ),
+            ],
+          ),
+          if (_scheduleTimes.isEmpty)
+            const Padding(
+              padding: EdgeInsets.only(top: 8),
+              child: Text(
+                'Please add at least one dose time.',
+                style: TextStyle(color: Colors.orange, fontSize: 12),
+              ),
+            ),
         ],
       ),
     );
