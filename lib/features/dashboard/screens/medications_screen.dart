@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:quickmed/models/medication_model.dart';
 import 'package:quickmed/services/database_service.dart';
 import 'package:quickmed/routes/app_routes.dart';
+import 'package:quickmed/constants/app_colors.dart';
 import 'dart:io';
 import 'dart:convert';
 import 'package:path_provider/path_provider.dart';
@@ -214,7 +215,7 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
                           style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
-                            color: Colors.black87,
+                            color: AppColors.textPrimary,
                           ),
                         ),
                         const SizedBox(height: 4),
@@ -222,7 +223,7 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
                           medication.type,
                           style: const TextStyle(
                             fontSize: 13,
-                            color: Colors.grey,
+                            color: AppColors.textSecondary,
                           ),
                         ),
                       ],
@@ -245,14 +246,15 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
                         _deleteMedication(medication.id);
                       }
                     },
+                    icon: const Icon(Icons.more_horiz, color: AppColors.textSecondary),
                     itemBuilder: (BuildContext context) => [
                       const PopupMenuItem<String>(
                         value: 'edit',
                         child: Row(
                           children: [
-                            Icon(Icons.edit, size: 18, color: Colors.blue),
+                            Icon(Icons.edit_outlined, size: 18, color: AppColors.primary),
                             SizedBox(width: 8),
-                            Text('Edit'),
+                            Text('Edit Details'),
                           ],
                         ),
                       ),
@@ -260,9 +262,9 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
                         value: 'delete',
                         child: Row(
                           children: [
-                            Icon(Icons.delete, size: 18, color: Colors.red),
+                            Icon(Icons.delete_outline_rounded, size: 18, color: AppColors.danger),
                             SizedBox(width: 8),
-                            Text('Delete', style: TextStyle(color: Colors.red)),
+                            Text('Remove', style: TextStyle(color: AppColors.danger)),
                           ],
                         ),
                       ),
@@ -299,7 +301,6 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
                 frequency: medication.frequency,
                 scheduleTimes: medication.scheduleTimes,
                 dosage: medication.dosage,
-                onAddTime: () => _addScheduleTime(medication),
                 onRemoveTime: (time) => _removeScheduleTime(medication, time),
               ),
             ),
@@ -336,13 +337,13 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
       children: [
         Row(
           children: [
-            Icon(icon, size: 14, color: Colors.grey),
+            Icon(icon, size: 14, color: AppColors.textSecondary),
             const SizedBox(width: 4),
             Text(
               label,
               style: const TextStyle(
                   fontSize: 11,
-                  color: Colors.grey,
+                  color: AppColors.textSecondary,
                   fontWeight: FontWeight.w500),
             ),
           ],
@@ -353,7 +354,7 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
           style: const TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w600,
-            color: Colors.black87,
+            color: AppColors.textPrimary,
           ),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
@@ -372,15 +373,15 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [const Color(0xFF2E7D32), const Color(0xFF388E3C)],
+                gradient: const LinearGradient(
+                  colors: [AppColors.success, AppColors.success],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
                 borderRadius: BorderRadius.circular(8),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF2E7D32).withOpacity(0.2),
+                    color: AppColors.success.withOpacity(0.2),
                     blurRadius: 4,
                     offset: const Offset(0, 2),
                   ),
@@ -418,7 +419,7 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
   Widget _buildDetailRow(String label, String value, IconData icon) {
     return Row(
       children: [
-        Icon(icon, size: 16, color: const Color(0xFF1565C0)),
+        Icon(icon, size: 16, color: AppColors.primary),
         const SizedBox(width: 8),
         Expanded(
           child: Column(
@@ -428,7 +429,7 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
                 label,
                 style: const TextStyle(
                     fontSize: 11,
-                    color: Colors.grey,
+                    color: AppColors.textSecondary,
                     fontWeight: FontWeight.w500),
               ),
               const SizedBox(height: 2),
@@ -437,7 +438,7 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
                 style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: Colors.black87),
+                    color: AppColors.textPrimary),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -451,18 +452,18 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFB),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.surface,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
           'My Medication Schedule',
           style: TextStyle(
-              color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 18),
+              color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 18),
         ),
         actions: [
           PopupMenuButton<String>(
@@ -473,14 +474,15 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
                 });
               }
             },
+            icon: const Icon(Icons.more_vert, color: AppColors.textPrimary),
             itemBuilder: (BuildContext context) => [
               const PopupMenuItem<String>(
                 value: 'export',
                 child: Row(
                   children: [
-                    Icon(Icons.download, size: 18),
+                    Icon(Icons.download, size: 18, color: AppColors.primary),
                     SizedBox(width: 8),
-                    Text('Export'),
+                    Text('Export Data'),
                   ],
                 ),
               ),
@@ -564,29 +566,30 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
                   Container(
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF1565C0).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(20),
+                      color: AppColors.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(24),
                     ),
                     child: Icon(
-                      Icons.medication,
+                      Icons.medication_rounded,
                       size: 64,
-                      color: const Color(0xFF1565C0).withOpacity(0.5),
+                      color: AppColors.primary,
                     ),
                   ),
-                  const SizedBox(height: 20),
-                  Text(
+                  const SizedBox(height: 24),
+                  const Text(
                     'No medications yet',
                     style: TextStyle(
-                        fontSize: 18,
+                        fontSize: 20,
                         fontWeight: FontWeight.bold,
-                        color: Colors.grey[700]),
+                        color: AppColors.textPrimary),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Start by adding your first medication',
-                    style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Start by adding your first medication to your schedule.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
                   ),
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 32),
                   ElevatedButton.icon(
                     onPressed: () {
                       Navigator.of(context)
@@ -598,14 +601,15 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
                       });
                     },
                     icon: const Icon(Icons.add, size: 20),
-                    label: const Text('Add Medication'),
+                    label: const Text('Add Medication', style: TextStyle(fontWeight: FontWeight.bold)),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF1565C0),
+                      backgroundColor: AppColors.primary,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 28, vertical: 12),
+                          horizontal: 32, vertical: 16),
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8)),
+                          borderRadius: BorderRadius.circular(16)),
+                      elevation: 0,
                     ),
                   ),
                 ],
@@ -614,10 +618,11 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
           }
 
           return ListView(
+            padding: const EdgeInsets.symmetric(vertical: 8),
             children: [
               Padding(
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    const EdgeInsets.fromLTRB(16, 16, 16, 16),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -627,19 +632,19 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
                         Text(
                           '${medications.length} Active',
                           style: const TextStyle(
-                            fontSize: 16,
+                            fontSize: 18,
                             fontWeight: FontWeight.bold,
-                            color: Colors.black87,
+                            color: AppColors.textPrimary,
                           ),
                         ),
                         Text(
                           'Medication${medications.length != 1 ? 's' : ''}',
                           style:
-                              TextStyle(fontSize: 12, color: Colors.grey[600]),
+                              const TextStyle(fontSize: 13, color: AppColors.textSecondary),
                         ),
                       ],
                     ),
-                    ElevatedButton.icon(
+                    ElevatedButton(
                       onPressed: () {
                         Navigator.of(context)
                             .pushNamed(AppRoutes.addMedication)
@@ -649,13 +654,31 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
                           });
                         });
                       },
-                      icon: const Icon(Icons.add, size: 18),
-                      label: const Text('Add New'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF1565C0),
+                        backgroundColor: AppColors.primary,
                         foregroundColor: Colors.white,
+                        minimumSize: const Size(0, 40),
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        elevation: 0,
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8)),
+                            borderRadius: BorderRadius.circular(10)),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.add_rounded, size: 18),
+                          SizedBox(width: 6),
+                          Padding(
+                            padding: EdgeInsets.only(bottom: 1), // Optical adjustment
+                            child: Text(
+                              'Add New',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],

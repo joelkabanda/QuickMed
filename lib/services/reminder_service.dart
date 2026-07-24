@@ -12,55 +12,58 @@ class ReminderService {
   static List<Reminder> buildRemindersForMedication({
     required String userId,
     required Medication medication,
-    DateTime? baseDate,
+    DateTime? startDate,
+    int daysCount = 7,
     int? leadTimeMinutes,
   }) {
-    final date = baseDate ?? DateTime.now();
+    final start = startDate ?? DateTime.now();
     final reminders = <Reminder>[];
 
-    for (final timeText in medication.scheduleTimes) {
-      final parts = timeText.split(':');
-      if (parts.length != 2) {
-        continue;
-      }
-
-      final hour = int.tryParse(parts[0]) ?? 0;
-      final minute = int.tryParse(parts[1]) ?? 0;
+    for (int i = 0; i < daysCount; i++) {
+      final date = start.add(Duration(days: i));
       
-      // Create dose time for today
-      DateTime scheduledTime = DateTime(
-        date.year,
-        date.month,
-        date.day,
-        hour,
-        minute,
-      );
+      for (final timeText in medication.scheduleTimes) {
+        final parts = timeText.split(':');
+        if (parts.length != 2) continue;
 
-      // If the time has already passed today, schedule for tomorrow
-      if (scheduledTime.isBefore(DateTime.now())) {
-        scheduledTime = scheduledTime.add(const Duration(days: 1));
+        final hour = int.tryParse(parts[0]) ?? 0;
+        final minute = int.tryParse(parts[1]) ?? 0;
+        
+        DateTime scheduledTime = DateTime(
+          date.year,
+          date.month,
+          date.day,
+          hour,
+          minute,
+        );
+
+        // Don't create reminders in the past for the first day
+        if (i == 0 && scheduledTime.isBefore(DateTime.now().subtract(const Duration(minutes: 5)))) {
+          continue;
+        }
+
+        final reminderTime = scheduledTime.subtract(
+          Duration(minutes: leadTimeMinutes ?? 0),
+        );
+
+        // Unique ID including date to allow history and future occurrences
+        final dateId = "${date.year}${date.month.toString().padLeft(2, '0')}${date.day.toString().padLeft(2, '0')}";
+        final timeId = timeText.replaceAll(':', '');
+        final reminderId = 'rem_${medication.id}_${dateId}_$timeId';
+
+        reminders.add(
+          Reminder(
+            id: reminderId,
+            userId: userId,
+            medicationId: medication.id,
+            reminderTime: reminderTime,
+            status: ReminderStatus.pending,
+            isNotificationSent: false,
+            notes: 'Time to take your ${medication.name} (${medication.dosage})',
+            createdAt: DateTime.now(),
+          ),
+        );
       }
-
-      final reminderTime = scheduledTime.subtract(
-        Duration(minutes: leadTimeMinutes ?? 0),
-      );
-
-      // Create a stable ID based on medication name and time to prevent duplicates
-      final String timeId = timeText.replaceAll(':', '');
-      final reminderId = 'rem_${medication.id}_$timeId';
-
-      reminders.add(
-        Reminder(
-          id: reminderId,
-          userId: userId,
-          medicationId: medication.id,
-          reminderTime: reminderTime,
-          status: ReminderStatus.pending,
-          isNotificationSent: false,
-          notes: 'Time to take your ${medication.name} (${medication.dosage})',
-          createdAt: DateTime.now(),
-        ),
-      );
     }
 
     return reminders;

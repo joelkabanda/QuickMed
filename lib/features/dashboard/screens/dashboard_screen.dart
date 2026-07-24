@@ -16,13 +16,17 @@ import '../widgets/settings.dart';
 //screens
 import 'add_medication_screen.dart';
 import 'add_reminder_screen.dart';
+import 'reminders_screen.dart';
 import 'location_picker_screen.dart';
+import 'location_comparison_map_view.dart';
 import 'medications_screen.dart';
 import 'health_profile_screen.dart';
+import 'credentials_screen.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../../../services/notification_service.dart';
 import '../../../models/medication_model.dart';
 import '../../../models/reminder_model.dart';
+import '../../../models/user_profile_model.dart';
 import '../../../services/database_service.dart';
 import 'package:intl/intl.dart';
 
@@ -38,6 +42,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   late DatabaseService _dbService;
   Stream<List<Medication>>? _medicationsStream;
   Stream<List<Reminder>>? _remindersStream;
+  Stream<SavedPharmacyLocation?>? _locationStream;
   Timer? _refreshTimer;
 
   User? get _currentUser => FirebaseAuth.instance.currentUser;
@@ -81,7 +86,60 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (userId != null) {
       _medicationsStream = _dbService.streamUserMedications(userId);
       _remindersStream = _dbService.streamUserReminders(userId);
+      _locationStream = _dbService.streamSavedPharmacyLocation(userId);
+      _checkAndSetupLocation();
     }
+  }
+
+  Future<void> _checkAndSetupLocation() async {
+    final userId = _currentUser?.uid;
+    if (userId == null) return;
+
+    final savedLocation = await _dbService.getSavedPharmacyLocation(userId);
+    if (savedLocation == null && mounted) {
+      // If no location saved, we can offer to capture it now
+      _showLocationSetupPrompt();
+    }
+  }
+
+  void _showLocationSetupPrompt() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Setup Medicine Source'),
+        content: const Text(
+          'QuickMed can help you arrive at your pharmacy on time! Would you like to set your preferred Pharmacy or Medication Pickup location now?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Later'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const LocationPickerScreen(),
+                ),
+              );
+              final uid = _currentUser?.uid;
+              if (result is SavedPharmacyLocation && uid != null) {
+                await _dbService.saveSavedPharmacyLocation(uid, result);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Medicine source saved!')),
+                  );
+                }
+              }
+            },
+            child: const Text('Set Location'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _checkPermissions() async {
@@ -191,157 +249,227 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    return StreamBuilder<List<Medication>>(
-      stream: _medicationsStream,
-      builder: (context, medSnapshot) {
-        return StreamBuilder<List<Reminder>>(
-          stream: _remindersStream,
-          builder: (context, reminderSnapshot) {
-            if (!medSnapshot.hasData || !reminderSnapshot.hasData) {
-              return const Scaffold(body: Center(child: CircularProgressIndicator()));
-            }
+    return StreamBuilder<SavedPharmacyLocation?>(
+      stream: _locationStream,
+      builder: (context, locationSnapshot) {
+        final savedLocation = locationSnapshot.data;
 
-            final medications = medSnapshot.data!;
-            final reminders = reminderSnapshot.data!;
-            
-            debugPrint("Dashboard: Processing ${medications.length} meds and ${reminders.length} reminders");
+        return StreamBuilder<List<Medication>>(
+          stream: _medicationsStream,
+          builder: (context, medSnapshot) {
+            return StreamBuilder<List<Reminder>>(
+              stream: _remindersStream,
+              builder: (context, reminderSnapshot) {
+                if (!medSnapshot.hasData || !reminderSnapshot.hasData) {
+                  return const Scaffold(
+                      body: Center(child: CircularProgressIndicator()));
+                }
 
-            // Calculate Dashboard Data
-            final now = DateTime.now();
-            final todayStart = DateTime(now.year, now.month, now.day);
-            final todayEnd = DateTime(now.year, now.month, now.day, 23, 59, 59);
+                final medications = medSnapshot.data!;
+                final reminders = reminderSnapshot.data!;
 
-            // Filter pending reminders regardless of time (show missed ones as priority)
-            final pendingReminders = reminders.where((r) => r.status == ReminderStatus.pending).toList();
-            pendingReminders.sort((a, b) => a.reminderTime.compareTo(b.reminderTime));
-
-            // Today's total and completed count
-            final todayReminders = reminders.where((r) => 
-              r.reminderTime.isAfter(todayStart) && r.reminderTime.isBefore(todayEnd)
-            ).toList();
-
-            final totalToday = todayReminders.length;
-            final completedToday = todayReminders.where((r) => r.status == ReminderStatus.taken).length;
-
-            // The absolute "Next" (or Overdue) dose
-            final nextReminder = pendingReminders.isNotEmpty ? pendingReminders.first : null;
-            Medication? nextMed;
-            if (nextReminder != null) {
-              nextMed = medications.firstWhere(
-                (m) => m.id == nextReminder.medicationId,
-                orElse: () => Medication(id: '', userId: '', name: 'Medication', type: '', dosage: '', frequency: '', scheduleTimes: [], reminderTimes: [], isActive: true, createdAt: DateTime.now(), startDate: DateTime.now()),
-              );
-            }
-
-            final upcomingForList = reminders.where((r) => 
-              r.reminderTime.isAfter(now) && r.status == ReminderStatus.pending
-            ).toList();
-            upcomingForList.sort((a, b) => a.reminderTime.compareTo(b.reminderTime));
-
-            final nextDoseText = nextReminder != null 
-                ? (nextReminder.reminderTime.day == now.day 
-                    ? DateFormat('h:mm a').format(nextReminder.reminderTime)
-                    : DateFormat('MMM d, h:mm a').format(nextReminder.reminderTime))
-                : "";
-
-            return Scaffold(
-              backgroundColor: AppColors.background,
-              body: SafeArea(
-                bottom: false,
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                return Scaffold(
+                  backgroundColor: AppColors.background,
+                  body: IndexedStack(
+                    index: _navIndex,
                     children: [
-                      if (_showPermissionWarning)
-                        _buildPermissionWarning(),
-
-                      GreetingHeader(
-                        username: _username,
-                        onSettingsTap: () => Settings.show(
-                          context,
-                          username: _username,
-                          email: _email,
-                          bloodGroup: "O+", // TODO: pull from health profile data
-                          activeMedicationsCount: medications.length,
-                          onViewFullProfile: () =>
-                              _navigateTo(const HealthProfileScreen()),
-                          onTriggerTestNotifications: _triggerTestNotifications,
-                          onSignOut: () async {
-                            await FirebaseAuth.instance.signOut();
-                            if (context.mounted) {
-                              Navigator.of(context).pushAndRemoveUntil(
-                                MaterialPageRoute(builder: (_) => const LoginScreen()),
-                                (route) => false,
-                              );
-                            }
-                          },
-                        ),
-                      ),
-                      const SizedBox(height: 22),
-
-                      GestureDetector(
-                        onTap: nextReminder != null && nextMed != null
-                            ? () => _takeMedication(nextReminder, nextMed!.name)
-                            : null,
-                        child: MedWalletCard(
-                          patientName: _username,
-                          nextMedicationName: nextMed?.name ?? "All Caught Up",
-                          nextDoseTime: nextReminder != null ? nextDoseText : "Good Job!",
-                          completedToday: completedToday,
-                          totalToday: totalToday,
-                        ),
-                      ),
-
-                      const SizedBox(height: 26),
-                      const SectionTitle(title: "Quick Actions"),
-                      const SizedBox(height: 16),
-
-                      _buildQuickActionsGrid(),
-
-                      const SizedBox(height: 26),
-                      const SectionTitle(title: "Upcoming Reminders"),
-                      const SizedBox(height: 12),
-
-                      if (upcomingForList.isEmpty)
-                        const Center(
-                          child: Padding(
-                            padding: EdgeInsets.symmetric(vertical: 20),
-                            child: Text("No more reminders today", style: TextStyle(color: Colors.grey)),
-                          ),
-                        )
-                      else
-                        ...upcomingForList.take(5).map((r) {
-                          final med = medications.firstWhere(
-                            (m) => m.id == r.medicationId, 
-                            orElse: () => nextMed ?? Medication(id: '', userId: '', name: 'Medication', type: '', dosage: '', frequency: '', scheduleTimes: [], reminderTimes: [], isActive: true, createdAt: DateTime.now(), startDate: DateTime.now()),
-                          );
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 10),
-                            child: ReminderTile(
-                              medicineName: med.name,
-                              dosage: med.dosage,
-                              time: DateFormat('MMM d, h:mm a').format(r.reminderTime),
-                              status: "Pending",
-                              onTap: () => _takeMedication(r, med.name),
-                            ),
-                          );
-                        }),
-
-                      const SizedBox(height: 100), // clears the floating bottom nav
+                      _buildHomeTab(context, savedLocation, medications, reminders),
+                      const CredentialsScreen(),
+                      const MedicationsScreen(), // Using MedicationsScreen as History for now
+                      _buildMoreTab(),
                     ],
                   ),
-                ),
-              ),
-              bottomNavigationBar: MedBottomNav(
-                currentIndex: _navIndex,
-                onTap: (i) => setState(() => _navIndex = i),
-                onScanTap: () {},
-              ),
+                  bottomNavigationBar: MedBottomNav(
+                    currentIndex: _navIndex,
+                    onTap: (i) => setState(() => _navIndex = i),
+                    onScanTap: () {},
+                  ),
+                );
+              },
             );
           },
         );
       },
+    );
+  }
+
+  Widget _buildHomeTab(BuildContext context, SavedPharmacyLocation? savedLocation, List<Medication> medications, List<Reminder> reminders) {
+    // Calculate Dashboard Data
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
+    final todayEnd =
+        DateTime(now.year, now.month, now.day, 23, 59, 59);
+
+    // Filter pending reminders (including overdue ones)
+    final pendingReminders =
+        reminders.where((r) => r.status == ReminderStatus.pending).toList();
+    pendingReminders
+        .sort((a, b) => a.reminderTime.compareTo(b.reminderTime));
+
+    // The absolute "Next" (or Overdue) dose
+    final nextReminder =
+        pendingReminders.isNotEmpty ? pendingReminders.first : null;
+    Medication? nextMed;
+    if (nextReminder != null) {
+      try {
+        nextMed = medications.firstWhere(
+          (m) => m.id == nextReminder.medicationId,
+        );
+      } catch (_) {
+        nextMed = null;
+      }
+    }
+
+    final upcomingForList = reminders
+        .where((r) =>
+            r.reminderTime.isAfter(now) &&
+            r.reminderTime.isBefore(todayEnd) &&
+            r.status == ReminderStatus.pending)
+        .toList();
+    upcomingForList
+        .sort((a, b) => a.reminderTime.compareTo(b.reminderTime));
+
+    return SafeArea(
+      bottom: false,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (_showPermissionWarning) _buildPermissionWarning(),
+            GreetingHeader(
+              username: _username,
+              onSettingsTap: () => Settings.show(
+                context,
+                username: _username,
+                email: _email,
+                bloodGroup: "O+",
+                activeMedicationsCount: medications.length,
+                onViewFullProfile: () => _navigateTo(const HealthProfileScreen()),
+                onTriggerTestNotifications: _triggerTestNotifications,
+                onSignOut: () async {
+                  await FirebaseAuth.instance.signOut();
+                  if (context.mounted) {
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(builder: (_) => const LoginScreen()),
+                      (route) => false,
+                    );
+                  }
+                },
+              ),
+            ),
+            const SizedBox(height: 22),
+            _buildWelcomeCard(),
+            const SizedBox(height: 26),
+            const SectionTitle(title: "Quick Actions"),
+            const SizedBox(height: 16),
+            _buildQuickActionsGrid(savedLocation),
+            const SizedBox(height: 26),
+            const SectionTitle(title: "Reminders"),
+            const SizedBox(height: 12),
+            if (upcomingForList.isEmpty)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 20),
+                  child: Text("No more reminders today", style: TextStyle(color: Colors.grey)),
+                ),
+              )
+            else
+              ...upcomingForList.take(5).map((r) {
+                final med = medications.firstWhere(
+                  (m) => m.id == r.medicationId,
+                  orElse: () => nextMed ?? Medication(id: '', userId: '', name: 'Medication', type: '', dosage: '', frequency: '', scheduleTimes: [], reminderTimes: [], isActive: true, createdAt: DateTime.now(), startDate: DateTime.now()),
+                );
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: ReminderTile(
+                    medicineName: med.name,
+                    dosage: med.dosage,
+                    time: DateFormat('MMM d, h:mm a').format(r.reminderTime),
+                    status: "Pending",
+                    onTap: () => _takeMedication(r, med.name),
+                  ),
+                );
+              }),
+            const SizedBox(height: 100),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWelcomeCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        gradient: LinearGradient(
+          colors: [AppColors.primary, AppColors.primaryDark],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withOpacity(0.3),
+            blurRadius: 25,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.auto_awesome, color: Colors.white, size: 32),
+          const SizedBox(height: 16),
+          Text(
+            "Welcome to QuickMed, $_username!",
+            style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            "Your intelligent health companion is ready to help you track your medications and stay on top of your health journey.",
+            style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 15, height: 1.4),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMoreTab() {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: const Text('More Options', style: TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: AppColors.surface,
+        elevation: 0,
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          _buildMoreItem(Icons.person_outline, 'Health Profile', () => _navigateTo(const HealthProfileScreen())),
+          _buildMoreItem(Icons.settings_outlined, 'Settings', () {}),
+          _buildMoreItem(Icons.help_outline, 'Help & Support', () {}),
+          _buildMoreItem(Icons.logout, 'Sign Out', () async {
+            await FirebaseAuth.instance.signOut();
+            if (mounted) {
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (_) => const LoginScreen()),
+                (route) => false,
+              );
+            }
+          }, isDestructive: true),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMoreItem(IconData icon, String title, VoidCallback onTap, {bool isDestructive = false}) {
+    return ListTile(
+      leading: Icon(icon, color: isDestructive ? Colors.red : AppColors.primary),
+      title: Text(title, style: TextStyle(color: isDestructive ? Colors.red : AppColors.textPrimary, fontWeight: FontWeight.w500)),
+      trailing: const Icon(Icons.chevron_right, size: 20),
+      onTap: onTap,
     );
   }
 
@@ -415,7 +543,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildQuickActionsGrid() {
+  Widget _buildQuickActionsGrid(SavedPharmacyLocation? savedLocation) {
     return GridView.count(
       crossAxisCount: 3,
       shrinkWrap: true,
@@ -427,7 +555,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
           label: "Track Routes",
           icon: Icons.local_pharmacy_outlined,
           color: AppColors.primary,
-          onTap: () => _navigateTo(const LocationPickerScreen()),
+          onTap: () {
+            if (savedLocation != null) {
+              _navigateTo(LocationComparisonMapView(savedLocation: savedLocation));
+            } else {
+              _navigateTo(const LocationPickerScreen());
+            }
+          },
         ),
         DashboardActionTile(
           label: "Medication\nSchedule",
@@ -442,10 +576,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
           onTap: () => _navigateTo(const AddMedicationScreen()),
         ),
         DashboardActionTile(
-          label: "Add\nReminder",
-          icon: Icons.alarm_add_outlined,
+          label: "Reminders",
+          icon: Icons.notifications_active_outlined,
           color: AppColors.warning,
-          onTap: () => _navigateTo(const AddReminderScreen()),
+          onTap: () => _navigateTo(const RemindersScreen()),
         ),
         DashboardActionTile(
           label: "Refill\nTracker",

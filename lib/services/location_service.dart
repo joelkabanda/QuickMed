@@ -6,7 +6,7 @@ import 'dart:convert';
 
 class LocationService {
   static const double meterToKm = 0.001;
-  static const double avgSpeedKmH = 40; // Average speed for pharmacy navigation
+  static const double avgSpeedKmH = 2.5; // Significantly reduced speed to increase estimated travel time (approx 40m/min)
   static Stream<Position>? _positionStream;
 
   /// Check if location services are enabled
@@ -94,10 +94,19 @@ class LocationService {
 
     return {
       'distance': distance,
-      'distanceKm': distance.toStringAsFixed(1),
+      'distanceText': _formatDistanceText(distance),
       'timeMinutes': timeMinutes,
       'timeText': _formatTimeText(timeMinutes),
     };
+  }
+
+  static String _formatDistanceText(double distanceKm) {
+    if (distanceKm < 1.0) {
+      final meters = (distanceKm * 1000).round();
+      return '$meters m';
+    } else {
+      return '${distanceKm.toStringAsFixed(1)} km';
+    }
   }
 
   /// Get address from coordinates
@@ -144,7 +153,7 @@ class LocationService {
       if (mins == 0) {
         return '$hours hr${hours > 1 ? 's' : ''}';
       }
-      return '$hours hr ${mins}min';
+      return '$hours hr $mins min';
     }
   }
 
@@ -180,34 +189,8 @@ class LocationService {
     double endLon,
   ) async {
     try {
-      final url =
-          'https://router.project-osrm.org/route/v1/driving/$startLon,$startLat;$endLon,$endLat?geometries=geojson&overview=full';
-
-      final response = await http.get(Uri.parse(url)).timeout(
-        const Duration(seconds: 10),
-        onTimeout: () => throw Exception('Route request timeout'),
-      );
-
-      if (response.statusCode == 200) {
-        final json = jsonDecode(response.body);
-        final routes = json['routes'] as List;
-
-        if (routes.isEmpty) {
-          throw Exception('No route found');
-        }
-
-        final geometry = routes[0]['geometry'];
-        final coordinates = geometry['coordinates'] as List;
-
-        return coordinates
-            .map((coord) => {
-                  'latitude': coord[1] as double,
-                  'longitude': coord[0] as double,
-                })
-            .toList();
-      } else {
-        throw Exception('Failed to fetch route: ${response.statusCode}');
-      }
+      final info = await getFullRouteInfo(startLat, startLon, endLat, endLon);
+      return info['coordinates'];
     } catch (e) {
       throw Exception('Error getting route: $e');
     }
@@ -221,8 +204,22 @@ class LocationService {
     double endLon,
   ) async {
     try {
+      return await getFullRouteInfo(startLat, startLon, endLat, endLon);
+    } catch (e) {
+      throw Exception('Error getting route details: $e');
+    }
+  }
+
+  /// Get full route information including coordinates, distance, and duration
+  static Future<Map<String, dynamic>> getFullRouteInfo(
+    double startLat,
+    double startLon,
+    double endLat,
+    double endLon,
+  ) async {
+    try {
       final url =
-          'https://router.project-osrm.org/route/v1/driving/$startLon,$startLat;$endLon,$endLat?overview=full';
+          'https://router.project-osrm.org/route/v1/foot/$startLon,$startLat;$endLon,$endLat?geometries=geojson&overview=full';
 
       final response = await http.get(Uri.parse(url)).timeout(
         const Duration(seconds: 10),
@@ -240,34 +237,46 @@ class LocationService {
         final route = routes[0];
         final distance = (route['distance'] as num).toDouble();
         final duration = (route['duration'] as num).toDouble();
+        
+        final geometry = route['geometry'];
+        final coordinates = (geometry['coordinates'] as List)
+            .map((coord) => {
+                  'latitude': coord[1] as double,
+                  'longitude': coord[0] as double,
+                })
+            .toList();
 
         return {
-          'distance': distance / 1000, // Convert to km
-          'distanceText': '${(distance / 1000).toStringAsFixed(1)} km',
-          'duration': duration.toInt(), // Duration in seconds
+          'coordinates': coordinates,
+          'distance': distance / 1000,
+          'distanceText': _formatDistanceText(distance / 1000),
+          'duration': duration.toInt(),
           'durationText': _formatDurationText(duration.toInt()),
         };
       } else {
         throw Exception('Failed to fetch route: ${response.statusCode}');
       }
     } catch (e) {
-      throw Exception('Error getting route details: $e');
+      throw Exception('Error getting route info: $e');
     }
   }
 
   static String _formatDurationText(int seconds) {
-    final minutes = seconds ~/ 60;
-    final hours = minutes ~/ 60;
-    final remainingMinutes = minutes % 60;
-
-    if (minutes < 1) {
-      return 'Less than 1 min';
-    } else if (hours == 0) {
-      return '$minutes min';
-    } else if (remainingMinutes == 0) {
-      return '$hours hr${hours > 1 ? 's' : ''}';
+    // We add a 100% buffer (multiplier of 2.0) to OSRM's raw 5km/h duration 
+    // to reflect a much slower 2.5km/h walking pace and account for city delays.
+    final adjustedMinutes = ((seconds / 60) * 2.0).round();
+    
+    if (adjustedMinutes < 1) {
+      return '1 min';
+    } else if (adjustedMinutes < 60) {
+      return '$adjustedMinutes min';
     } else {
-      return '$hours hr ${remainingMinutes}min';
+      final hours = adjustedMinutes ~/ 60;
+      final remainingMinutes = adjustedMinutes % 60;
+      if (remainingMinutes == 0) {
+        return '$hours hr${hours > 1 ? 's' : ''}';
+      }
+      return '$hours hr $remainingMinutes min';
     }
   }
 }

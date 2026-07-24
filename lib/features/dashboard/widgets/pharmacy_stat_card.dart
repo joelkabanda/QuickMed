@@ -67,7 +67,9 @@ class _PharmacyStatCardState extends State<PharmacyStatCard> {
 
     try {
       final position = await LocationService.getCurrentLocation();
-      final result = LocationService.calculateDistanceAndTime(
+      
+      // Use the async routing service for much higher accuracy (like Google Maps)
+      final routeResult = await LocationService.getRouteDetails(
         position.latitude,
         position.longitude,
         widget.savedLocation?.latitude ?? widget.pharmacy!.latitude,
@@ -76,16 +78,35 @@ class _PharmacyStatCardState extends State<PharmacyStatCard> {
 
       if (mounted) {
         setState(() {
-          _distanceText = result['distanceKm'];
-          _timeText = result['timeText'];
+          _distanceText = routeResult['distanceText'];
+          _timeText = routeResult['durationText'];
           _errorMessage = null;
         });
       }
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _errorMessage = 'Unable to calculate distance';
-        });
+      // Fallback to simple calculation if routing service fails
+      try {
+        final position = await LocationService.getCurrentLocation();
+        final result = LocationService.calculateDistanceAndTime(
+          position.latitude,
+          position.longitude,
+          widget.savedLocation?.latitude ?? widget.pharmacy!.latitude,
+          widget.savedLocation?.longitude ?? widget.pharmacy!.longitude,
+        );
+
+        if (mounted) {
+          setState(() {
+            _distanceText = result['distanceText'];
+            _timeText = result['timeText'];
+            _errorMessage = null;
+          });
+        }
+      } catch (fallbackError) {
+        if (mounted) {
+          setState(() {
+            _errorMessage = 'Unable to calculate distance';
+          });
+        }
       }
     }
   }
@@ -240,7 +261,7 @@ class _PharmacyStatCardState extends State<PharmacyStatCard> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: _buildInfoChip(
-                      icon: Icons.schedule,
+                      icon: Icons.directions_walk,
                       label: _timeText ?? '--',
                       color: Colors.orange,
                     ),

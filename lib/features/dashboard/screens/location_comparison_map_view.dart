@@ -4,8 +4,11 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:quickmed/models/user_profile_model.dart';
 import 'package:quickmed/services/location_service.dart';
+import 'package:quickmed/services/database_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:map_launcher/map_launcher.dart';
+import 'location_picker_screen.dart';
 
 class LocationComparisonMapView extends StatefulWidget {
   final SavedPharmacyLocation savedLocation;
@@ -24,6 +27,7 @@ class LocationComparisonMapView extends StatefulWidget {
 
 class _LocationComparisonMapViewState extends State<LocationComparisonMapView> {
   late MapController _mapController;
+  late SavedPharmacyLocation _currentSavedLocation;
   Position? _currentPosition;
   bool _isLoadingLocation = false;
   bool _isLoadingRoute = false;
@@ -33,11 +37,13 @@ class _LocationComparisonMapViewState extends State<LocationComparisonMapView> {
   List<Map<String, double>> _routeCoordinates = [];
   StreamSubscription<Position>? _positionStreamSubscription;
   bool _enableRealTimeTracking = false;
+  final DatabaseService _dbService = DatabaseService();
 
   @override
   void initState() {
     super.initState();
     _mapController = MapController();
+    _currentSavedLocation = widget.savedLocation;
     if (widget.showCurrentLocation) {
       _loadCurrentLocation();
     }
@@ -83,23 +89,26 @@ class _LocationComparisonMapViewState extends State<LocationComparisonMapView> {
 
     setState(() => _isLoadingRoute = true);
     try {
-      final coordinates = await LocationService.getRouteCoordinates(
+      // Get all route info (coordinates + stats) in one go to keep them in perfect sync
+      final routeInfo = await LocationService.getFullRouteInfo(
         _currentPosition!.latitude,
         _currentPosition!.longitude,
-        widget.savedLocation.latitude,
-        widget.savedLocation.longitude,
+        _currentSavedLocation.latitude,
+        _currentSavedLocation.longitude,
       );
 
       if (mounted) {
-        setState(() => _routeCoordinates = coordinates);
+        setState(() {
+          _routeCoordinates = routeInfo['coordinates'];
+          _distanceText = routeInfo['distanceText'];
+          _timeText = routeInfo['durationText'];
+          _distanceMeters = (routeInfo['distance'] * 1000).toInt();
+        });
       }
     } catch (e) {
       debugPrint('Error loading route: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not load route: $e')),
-        );
-      }
+      // If routing fails, we keep the simple Haversine calculation as fallback
+      _calculateDistance();
     } finally {
       if (mounted) {
         setState(() => _isLoadingRoute = false);
@@ -113,13 +122,13 @@ class _LocationComparisonMapViewState extends State<LocationComparisonMapView> {
     final result = LocationService.calculateDistanceAndTime(
       _currentPosition!.latitude,
       _currentPosition!.longitude,
-      widget.savedLocation.latitude,
-      widget.savedLocation.longitude,
+      _currentSavedLocation.latitude,
+      _currentSavedLocation.longitude,
     );
 
     if (mounted) {
       setState(() {
-        _distanceText = result['distanceKm'];
+        _distanceText = result['distanceText'];
         _timeText = result['timeText'];
         _distanceMeters = (result['distance'] * 1000).toInt();
       });
@@ -139,17 +148,24 @@ class _LocationComparisonMapViewState extends State<LocationComparisonMapView> {
     setState(() => _enableRealTimeTracking = true);
     
     _positionStreamSubscription = LocationService.getPositionStream(
-      distanceFilter: 5,
+      distanceFilter: 15, // Update every 15 meters to balance accuracy and API usage
     ).listen(
       (Position position) {
         if (mounted) {
-          setState(() => _currentPosition = position);
+          setState(() {
+            _currentPosition = position;
+          });
+          
+          // 1. Immediately update fast straight-line estimates
           _calculateDistance();
+          
+          // 2. Update accurate route and walking time
           _loadRoute();
           
+          // 3. Keep the map centered on the user during tracking
           _mapController.move(
             LatLng(position.latitude, position.longitude),
-            13,
+            _mapController.zoom,
           );
         }
       },
@@ -168,8 +184,8 @@ class _LocationComparisonMapViewState extends State<LocationComparisonMapView> {
   Future<void> _openInExternalMap() async {
     try {
       final coords = Coords(
-        widget.savedLocation.latitude,
-        widget.savedLocation.longitude,
+        _currentSavedLocation.latitude,
+        _currentSavedLocation.longitude,
       );
 
       final availableMaps = await MapLauncher.installedMaps;
@@ -193,11 +209,23 @@ class _LocationComparisonMapViewState extends State<LocationComparisonMapView> {
                   for (final map in availableMaps)
                     ListTile(
                       onTap: () {
-                        map.showMarker(
-                          coords: coords,
-                          title: widget.savedLocation.pharmacyName,
-                          description: widget.savedLocation.address,
-                        );
+                        if (_currentPosition != null) {
+                          map.showDirections(
+                            destination: coords,
+                            destinationTitle: _currentSavedLocation.pharmacyName,
+                            origin: Coords(
+                              _currentPosition!.latitude,
+                              _currentPosition!.longitude,
+                            ),
+                            directionsMode: DirectionsMode.walking,
+                          );
+                        } else {
+                          map.showMarker(
+                            coords: coords,
+                            title: _currentSavedLocation.pharmacyName,
+                            description: _currentSavedLocation.address,
+                          );
+                        }
                         Navigator.of(context).pop();
                       },
                       title: Text(map.mapName),
@@ -230,11 +258,44 @@ class _LocationComparisonMapViewState extends State<LocationComparisonMapView> {
     }
   }
 
+  Future<void> _editLocation() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => LocationPickerScreen(
+          initialLocation: _currentSavedLocation,
+        ),
+      ),
+    );
+
+    if (result is SavedPharmacyLocation && mounted) {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid != null) {
+        await _dbService.saveSavedPharmacyLocation(uid, result);
+        setState(() {
+          _currentSavedLocation = result;
+          _routeCoordinates = []; // Reset route
+          _loadRoute(); // Reload route to updated location
+          _calculateDistance();
+          _mapController.move(
+            LatLng(_currentSavedLocation.latitude, _currentSavedLocation.longitude),
+            15,
+          );
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Location updated successfully')),
+          );
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final userLocation = _currentPosition;
-    final savedLatLng =
-        LatLng(widget.savedLocation.latitude, widget.savedLocation.longitude);
+    final savedLatLng = LatLng(
+        _currentSavedLocation.latitude, _currentSavedLocation.longitude);
 
     return Scaffold(
       appBar: AppBar(
@@ -245,10 +306,15 @@ class _LocationComparisonMapViewState extends State<LocationComparisonMapView> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          widget.savedLocation.pharmacyName,
+          _currentSavedLocation.pharmacyName,
           style: const TextStyle(color: Colors.black87),
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.location_on, color: Colors.green),
+            onPressed: _editLocation,
+            tooltip: 'Edit destination',
+          ),
           if (_enableRealTimeTracking)
             Padding(
               padding: const EdgeInsets.only(right: 8.0),
@@ -334,6 +400,9 @@ class _LocationComparisonMapViewState extends State<LocationComparisonMapView> {
                               userLocation.latitude,
                               userLocation.longitude,
                             ),
+                            width: 80,
+                            height: 80,
+                            alignment: Alignment.bottomCenter,
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
@@ -348,9 +417,9 @@ class _LocationComparisonMapViewState extends State<LocationComparisonMapView> {
                                         : Colors.blue,
                                     borderRadius: BorderRadius.circular(6),
                                   ),
-                                  child: const Text(
-                                    'You are here',
-                                    style: TextStyle(
+                                  child: Text(
+                                    'St • ${_distanceText ?? ""}',
+                                    style: const TextStyle(
                                       color: Colors.white,
                                       fontSize: 10,
                                       fontWeight: FontWeight.bold,
@@ -376,10 +445,8 @@ class _LocationComparisonMapViewState extends State<LocationComparisonMapView> {
                                       ),
                                     ],
                                   ),
-                                  child: Icon(
-                                    _enableRealTimeTracking
-                                        ? Icons.location_on
-                                        : Icons.my_location,
+                                  child: const Icon(
+                                    Icons.location_on,
                                     color: Colors.white,
                                     size: 20,
                                   ),
@@ -389,6 +456,9 @@ class _LocationComparisonMapViewState extends State<LocationComparisonMapView> {
                           ),
                         Marker(
                           point: savedLatLng,
+                          width: 80,
+                          height: 80,
+                          alignment: Alignment.bottomCenter,
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
@@ -401,9 +471,9 @@ class _LocationComparisonMapViewState extends State<LocationComparisonMapView> {
                                   color: Colors.green,
                                   borderRadius: BorderRadius.circular(6),
                                 ),
-                                child: const Text(
-                                  'Destination',
-                                  style: TextStyle(
+                                child: Text(
+                                  'En • ${_timeText ?? ""}',
+                                  style: const TextStyle(
                                     color: Colors.white,
                                     fontSize: 10,
                                     fontWeight: FontWeight.bold,
@@ -428,7 +498,7 @@ class _LocationComparisonMapViewState extends State<LocationComparisonMapView> {
                                   ],
                                 ),
                                 child: const Icon(
-                                  Icons.local_pharmacy,
+                                  Icons.location_on,
                                   color: Colors.white,
                                   size: 24,
                                 ),
@@ -500,7 +570,7 @@ class _LocationComparisonMapViewState extends State<LocationComparisonMapView> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            widget.savedLocation.pharmacyName,
+                            _currentSavedLocation.pharmacyName,
                             style: Theme.of(context).textTheme.titleMedium,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -540,12 +610,18 @@ class _LocationComparisonMapViewState extends State<LocationComparisonMapView> {
                               color: Colors.orange.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(6),
                             ),
-                            child: Text(
-                              _timeText!,
-                              style: const TextStyle(
-                                color: Colors.orange,
-                                fontWeight: FontWeight.bold,
-                              ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.directions_walk, size: 14, color: Colors.orange),
+                                const SizedBox(width: 4),
+                                Text(
+                                  _timeText!,
+                                  style: const TextStyle(
+                                    color: Colors.orange,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
@@ -554,7 +630,7 @@ class _LocationComparisonMapViewState extends State<LocationComparisonMapView> {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  widget.savedLocation.address,
+                  _currentSavedLocation.address,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: Colors.grey,
                       ),

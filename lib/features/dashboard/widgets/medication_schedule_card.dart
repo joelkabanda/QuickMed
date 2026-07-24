@@ -110,7 +110,7 @@ class MedicationScheduleCard extends StatelessWidget {
                     border: Border.all(color: Colors.grey.withOpacity(0.3)),
                   ),
                   child: const Text(
-                    'No times set. Click below to add medication times.',
+                    'No times set for this medication.',
                     style: TextStyle(
                       color: Colors.grey,
                       fontStyle: FontStyle.italic,
