@@ -30,6 +30,8 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   String? _errorMessage;
   String? _addressLoadingMessage;
 
+  Position? _currentPosition;
+
   @override
   void initState() {
     super.initState();
@@ -57,12 +59,13 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     setState(() => _isLoadingLocation = true);
     try {
       final position = await LocationService.getCurrentLocation();
-      if (widget.initialLocation == null) {
-        setState(() {
+      setState(() {
+        _currentPosition = position;
+        if (widget.initialLocation == null) {
           _selectedLat = position.latitude;
           _selectedLon = position.longitude;
-        });
-      }
+        }
+      });
       _mapController.move(
         LatLng(_selectedLat, _selectedLon),
         15,
@@ -130,8 +133,12 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     try {
       final position = await LocationService.getCurrentLocation();
       setState(() {
+        _currentPosition = position;
         _selectedLat = position.latitude;
         _selectedLon = position.longitude;
+        if (_nameController.text.isEmpty) {
+          _nameController.text = 'My Current Location';
+        }
       });
       _mapController.move(
         LatLng(_selectedLat, _selectedLon),
@@ -204,18 +211,27 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                     ),
                     MarkerLayer(
                       markers: [
+                        // Selected Location Marker (The saved location)
                         Marker(
                           point: LatLng(_selectedLat, _selectedLon),
+                          width: 80,
+                          height: 80,
+                          alignment: Alignment.bottomCenter,
                           child: Column(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
                               Container(
                                 padding: const EdgeInsets.all(6),
                                 decoration: BoxDecoration(
-                                  color: Colors.red,
-                                  borderRadius: BorderRadius.circular(24),
+                                  color: Colors.green,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: Colors.white,
+                                    width: 3,
+                                  ),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black.withOpacity(0.3),
+                                      color: Colors.black.withValues(alpha: 0.3),
                                       blurRadius: 8,
                                       offset: const Offset(0, 2),
                                     ),
@@ -262,7 +278,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                       borderRadius: BorderRadius.circular(8),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
+                          color: Colors.black.withValues(alpha: 0.1),
                           blurRadius: 8,
                         ),
                       ],
@@ -288,7 +304,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                       padding: const EdgeInsets.all(8),
                       margin: const EdgeInsets.only(bottom: 12),
                       decoration: BoxDecoration(
-                        color: Colors.red.withOpacity(0.1),
+                        color: Colors.red.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
@@ -346,15 +362,15 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: Colors.blue.withOpacity(0.1),
+                      color: Colors.blue.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                      border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Coordinates:',
+                          'Current Location Coordinates:',
                           style: Theme.of(context).textTheme.labelSmall?.copyWith(
                                 color: Colors.blue,
                                 fontWeight: FontWeight.bold,
@@ -362,7 +378,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          '${_selectedLat.toStringAsFixed(4)}, ${_selectedLon.toStringAsFixed(4)}',
+                          '${_currentPosition?.latitude.toStringAsFixed(4) ?? _selectedLat.toStringAsFixed(4)}, ${_currentPosition?.longitude.toStringAsFixed(4) ?? _selectedLon.toStringAsFixed(4)}',
                           style: Theme.of(context).textTheme.labelMedium?.copyWith(
                                 color: Colors.blue,
                               ),

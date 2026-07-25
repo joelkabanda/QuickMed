@@ -7,7 +7,7 @@ import 'services/notification_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize notification service (schedules rely on timezone setup)
+  // Initialize notification service
   await NotificationService().init();
   
   try {

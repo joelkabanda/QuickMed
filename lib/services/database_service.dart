@@ -4,7 +4,7 @@ import '../models/user_model.dart';
 import '../models/user_profile_model.dart';
 import '../models/medication_model.dart';
 import '../models/reminder_model.dart';
-import 'notification_service.dart';
+import '../models/app_notification_model.dart';
 
 class DatabaseService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -56,17 +56,6 @@ class DatabaseService {
     try {
       await _db.collection('reminders').doc(reminder.id).set(reminder.toMap());
       debugPrint("Reminder saved to Firestore successfully");
-
-      // Schedule local notification for this reminder (best-effort)
-      try {
-        // Avoid bringing flutter_local_notifications into a heavy dependency here
-        // import lazily
-        final ns = NotificationService();
-        await ns.scheduleReminder(reminder);
-      } catch (notifyErr) {
-        debugPrint('Failed to schedule local notification: $notifyErr');
-      }
-
     } catch (e) {
       debugPrint("Error saving reminder: $e");
       rethrow;
@@ -101,16 +90,79 @@ class DatabaseService {
       if (doc.exists && doc.data()?['userId'] == userId) {
         await docRef.delete();
         debugPrint("Reminder deleted successfully");
-        try {
-          await NotificationService().cancelReminder(reminderId);
-        } catch (cancelErr) {
-          debugPrint('Failed to cancel scheduled notification: $cancelErr');
-        }
       } else {
         throw Exception('Reminder not found or unauthorized');
       }
     } catch (e) {
       debugPrint("Error deleting reminder: $e");
+      rethrow;
+    }
+  }
+
+
+  /// Delete every reminder owned by the signed-in user.
+  Future<int> deleteAllReminders(String userId) async {
+    final snapshot = await _db
+        .collection('reminders')
+        .where('userId', isEqualTo: userId)
+        .get();
+    if (snapshot.docs.isEmpty) return 0;
+
+    const batchLimit = 450;
+    var deleted = 0;
+    for (var start = 0; start < snapshot.docs.length; start += batchLimit) {
+      final batch = _db.batch();
+      final end = (start + batchLimit < snapshot.docs.length)
+          ? start + batchLimit
+          : snapshot.docs.length;
+      for (final doc in snapshot.docs.sublist(start, end)) {
+        batch.delete(doc.reference);
+        deleted++;
+      }
+      await batch.commit();
+    }
+    return deleted;
+  }
+
+  Future<void> saveAppNotification(AppNotificationRecord item) async {
+    await _db.collection('app_notifications').doc(item.id).set(item.toMap());
+  }
+
+  Stream<List<AppNotificationRecord>> streamAppNotifications(String userId) {
+    return _db.collection('app_notifications').where('userId', isEqualTo: userId).snapshots().map((snapshot) {
+      final items = snapshot.docs.map((doc) => AppNotificationRecord.fromMap({...doc.data(), 'id': doc.id})).toList();
+      items.sort((a, b) => b.scheduledAt.compareTo(a.scheduledAt));
+      return items;
+    });
+  }
+
+  Future<void> deleteAppNotification(String userId, String notificationId) async {
+    final ref = _db.collection('app_notifications').doc(notificationId);
+    final snapshot = await ref.get();
+    if (!snapshot.exists) return;
+    if (snapshot.data()?['userId'] != userId) {
+      throw Exception('Notification not found or unauthorized');
+    }
+    await ref.delete();
+  }
+
+  Future<void> deleteAllAppNotifications(String userId) async {
+    final snapshot = await _db.collection('app_notifications').where('userId', isEqualTo: userId).get();
+    final batch = _db.batch();
+    for (final doc in snapshot.docs) { batch.delete(doc.reference); }
+    await batch.commit();
+  }
+
+  /// Update reminder status
+  Future<void> updateReminderStatus(String reminderId, ReminderStatus status) async {
+    try {
+      await _db.collection('reminders').doc(reminderId).update({
+        'status': status.toString().split('.').last,
+        'completedAt': status == ReminderStatus.taken ? DateTime.now().toIso8601String() : null,
+      });
+      debugPrint("Reminder status updated to $status");
+    } catch (e) {
+      debugPrint("Error updating reminder status: $e");
       rethrow;
     }
   }
@@ -204,6 +256,34 @@ class DatabaseService {
         );
       }
       return null;
+    });
+  }
+
+  /// Stream all medications for a user
+  Stream<List<Medication>> streamUserMedications(String userId) {
+    return _db
+        .collection('medications')
+        .where('userId', isEqualTo: userId)
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs
+          .map((doc) => Medication.fromMap({...doc.data(), 'id': doc.id}))
+          .toList();
+    });
+  }
+
+  /// Stream reminders for a user (auto-updates when Firestore changes)
+  Stream<List<Reminder>> streamUserReminders(String userId) {
+    return _db
+        .collection('reminders')
+        .where('userId', isEqualTo: userId)
+        .snapshots()
+        .map((snapshot) {
+      final reminders = snapshot.docs
+          .map((doc) => Reminder.fromMap({...doc.data(), 'id': doc.id}))
+          .toList();
+      reminders.sort((a, b) => a.reminderTime.compareTo(b.reminderTime));
+      return reminders;
     });
   }
 }

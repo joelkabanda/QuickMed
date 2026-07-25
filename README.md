@@ -103,3 +103,24 @@ flutter run
 ## Notes
 
 Firebase setup is planned for future implementation, and the app structure is being developed to support that integration smoothly.
+
+## Medication and location-aware reminders
+
+QuickMed schedules one local notification **30 minutes before every selected medication time**. When a pharmacy/destination address is saved, the app reads the user's current location while scheduling and requests Google Maps Routes estimates for driving, boda/two-wheeler, transit, walking, and bicycling. Available travel modes are included in the notification.
+
+### Google Maps setup
+
+1. In Google Cloud Console, enable **Routes API** for your project.
+2. Create a replacement API key and restrict it to the Routes API and your Android/iOS applications.
+3. Do not commit the key. Run or build with:
+
+```bash
+flutter run --dart-define=GOOGLE_MAPS_API_KEY=YOUR_RESTRICTED_KEY
+flutter build apk --dart-define=GOOGLE_MAPS_API_KEY=YOUR_RESTRICTED_KEY
+```
+
+The key supplied in chat was intentionally not written into the source tree. Rotate it because it has been exposed.
+
+### Runtime behavior
+
+Travel estimates are captured from the user's current position when the medication is saved/rescheduled. Mobile operating systems do not allow an ordinary pre-composed local notification to make a live network request at display time. For continuously refreshed ETAs at the exact notification moment, use a backend push-notification workflow or a platform-specific background task, subject to Android/iOS background-execution limits.
