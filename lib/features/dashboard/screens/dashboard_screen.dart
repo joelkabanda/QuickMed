@@ -321,7 +321,6 @@ Set this as your default medication destination?''',
                     index: _navIndex,
                     children: [
                       _buildHomeTab(context, savedLocation, medications, reminders),
-                      const CredentialsScreen(),
                       const MedicationsScreen(), // Using MedicationsScreen as History for now
                       _buildMoreTab(),
                     ],
@@ -625,7 +624,7 @@ Set this as your default medication destination?''',
       children: [
         DashboardActionTile(
           label: "Track Routes",
-          icon: Icons.local_pharmacy_outlined,
+          icon: Icons.map_outlined,
           color: AppColors.primary,
           onTap: () {
             if (savedLocation != null) {
@@ -660,10 +659,10 @@ Set this as your default medication destination?''',
           onTap: _resetAllReminders,
         ),
         DashboardActionTile(
-          label: "My Health\nProfile",
-          icon: Icons.person_outline_rounded,
+          label: "Pharmacy\n& Doctors",
+          icon: Icons.local_pharmacy_outlined,
           color: AppColors.primary,
-          onTap: () => _navigateTo(const HealthProfileScreen()),
+          onTap: () => _navigateTo(const CredentialsScreen()),
         ),
       ],
     );

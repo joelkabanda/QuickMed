@@ -25,9 +25,8 @@ class MedBottomNav extends StatelessWidget {
       child: Row(
         children: [
           _navItem(Icons.home_rounded, 'Home', 0),
-          _navItem(Icons.local_pharmacy_outlined, 'Pharmacy', 1),
-          _navItem(Icons.history_rounded, 'History', 2),
-          _navItem(Icons.more_horiz_rounded, 'More', 3),
+          _navItem(Icons.history_rounded, 'History', 1),
+          _navItem(Icons.more_horiz_rounded, 'More', 2),
         ],
       ),
     );
