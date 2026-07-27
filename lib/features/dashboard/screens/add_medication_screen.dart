@@ -8,7 +8,8 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:quickmed/models/medication_model.dart';
 import 'package:quickmed/services/database_service.dart';
 import 'package:quickmed/services/reminder_service.dart';
-import 'package:quickmed/features/dashboard/widgets/medication_schedule_card.dart';
+import 'package:quickmed/services/notification_service.dart';
+import 'package:quickmed/constants/app_colors.dart';
 
 class AddMedicationScreen extends StatefulWidget {
   final Medication? medication;
@@ -31,6 +32,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
   late TextEditingController _quantityController;
   late TextEditingController _purposeController;
   late TextEditingController _pharmacyAddressController;
+  late TextEditingController _timesPerDayController;
 
   String _selectedType = 'Tablet';
   String _selectedFrequency = 'Once daily';
@@ -90,6 +92,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
         TextEditingController(text: widget.medication?.purpose ?? '');
     _pharmacyAddressController =
         TextEditingController(text: widget.medication?.pharmacyAddress ?? '');
+    _timesPerDayController = TextEditingController();
 
     _selectedType = widget.medication?.type ?? 'Tablet';
     _selectedFrequency = widget.medication?.frequency ?? 'Once daily';
@@ -97,6 +100,10 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
     _endDate = widget.medication?.endDate;
     _scheduleTimes = widget.medication?.scheduleTimes ?? [];
     _reminderTimes = widget.medication?.reminderTimes ?? [];
+
+    _quantityController.addListener(_calculateEndDate);
+    _dosageController.addListener(_calculateEndDate);
+    _timesPerDayController.addListener(_calculateEndDate);
   }
 
   @override
@@ -109,6 +116,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
     _quantityController.dispose();
     _purposeController.dispose();
     _pharmacyAddressController.dispose();
+    _timesPerDayController.dispose();
     _textRecognizer.close();
     super.dispose();
   }
@@ -128,6 +136,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
           _endDate = picked;
         } else {
           _startDate = picked;
+          _calculateEndDate();
         }
       });
     }
@@ -153,6 +162,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
           if (!_scheduleTimes.contains(timeString)) {
             _scheduleTimes.add(timeString);
             _scheduleTimes.sort();
+            _calculateEndDate();
           }
         }
       });
@@ -165,8 +175,107 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
         _reminderTimes.remove(time);
       } else {
         _scheduleTimes.remove(time);
+        _calculateEndDate();
       }
     });
+  }
+
+  void _calculateEndDate() {
+    final quantity = int.tryParse(_quantityController.text);
+    
+    // Use the count from schedule times, or fallback to the "times per day" input
+    int dosesPerDay = _scheduleTimes.length;
+    if (dosesPerDay == 0) {
+      dosesPerDay = int.tryParse(_timesPerDayController.text) ?? 0;
+    }
+
+    // Try to extract units per dose from dosage string (e.g., "2 tablets" or "1.5 capsules")
+    double unitsPerDose = 1.0;
+    final dosageText = _dosageController.text.toLowerCase().trim();
+    
+    // Look for a number at the start that might be followed by a unit of count
+    final countMatch = RegExp(r'^(\d+(\.\d+)?)').firstMatch(dosageText);
+    if (countMatch != null) {
+      final potentialCount = double.tryParse(countMatch.group(1)!);
+      if (potentialCount != null) {
+        // Only use as multiplier if it's a small number or explicitly followed by a count-based unit
+        final hasCountUnit = dosageText.contains('tablet') || 
+                            dosageText.contains('capsule') || 
+                            dosageText.contains('pill') || 
+                            dosageText.contains('unit') || 
+                            dosageText.contains('puff') ||
+                            dosageText.contains('cap');
+        
+        // If it's something like "500mg", don't use 500 as a multiplier (assume 1 unit of 500mg)
+        if (hasCountUnit || potentialCount <= 5) {
+          unitsPerDose = potentialCount;
+        }
+      }
+    }
+
+    if (quantity != null && quantity > 0 && dosesPerDay > 0) {
+      final totalDailyUnits = dosesPerDay * unitsPerDose;
+      if (totalDailyUnits > 0) {
+        final totalDays = (quantity / totalDailyUnits).floor();
+        if (totalDays > 0) {
+          setState(() {
+            _endDate = _startDate.add(Duration(days: totalDays - 1));
+          });
+        }
+      }
+    }
+  }
+
+  Future<void> _autoScheduleTimes() async {
+    final count = int.tryParse(_timesPerDayController.text);
+    if (count == null || count <= 0 || count > 24) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Please enter a valid number of times per day (1-24)')),
+      );
+      return;
+    }
+
+    final TimeOfDay? startTime = await showTimePicker(
+      context: context,
+      initialTime: const TimeOfDay(hour: 8, minute: 0),
+      helpText: 'Select the time for the first dose',
+    );
+
+    if (startTime == null) return;
+
+    final interval = 24 / count;
+    final List<String> newTimes = [];
+
+    double currentHour = startTime.hour.toDouble() + (startTime.minute / 60.0);
+
+    for (int i = 0; i < count; i++) {
+      int hour = (currentHour.floor()) % 24;
+      int minute = ((currentHour - currentHour.floor()) * 60).round();
+
+      // Ensure minutes don't round up to 60
+      if (minute == 60) {
+        minute = 0;
+        hour = (hour + 1) % 24;
+      }
+
+      final timeString =
+          '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
+      newTimes.add(timeString);
+
+      currentHour += interval;
+    }
+
+    setState(() {
+      _scheduleTimes = newTimes..sort();
+      _calculateEndDate();
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+          content: Text(
+              'Generated $count doses every ${interval.toStringAsFixed(1)} hours starting at ${startTime.format(context)}.')),
+    );
   }
 
   Future<void> _captureMedicationImage() async {
@@ -324,26 +433,42 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
       final dbService = DatabaseService();
       await dbService.saveMedication(userId, medication);
 
-      final leadTimeMinutes = await ReminderService.estimateLeadTimeMinutesForAddress(
-        _pharmacyAddressController.text.isEmpty
-            ? null
-            : _pharmacyAddressController.text,
-      );
+      // Remove every reminder and scheduled notification created by the older
+      // reminder format before generating the new travel-aware sequence.
+      await NotificationService().cancelAll();
+      await dbService.deleteAllReminders(userId);
+      await dbService.deleteAllAppNotifications(userId);
+
       final generatedReminders = ReminderService.buildRemindersForMedication(
         userId: userId,
         medication: medication,
-        leadTimeMinutes: leadTimeMinutes,
       );
 
       for (final reminder in generatedReminders) {
         await dbService.saveReminder(reminder);
       }
+      
+      // Schedule system notifications for all new reminders
+      await ReminderService.scheduleMedicationNotifications(
+        userId: userId,
+        medication: medication,
+        reminders: generatedReminders,
+      );
 
       if (mounted) {
+        String scheduleMsg = 'Medication added.';
+        if (generatedReminders.isNotEmpty) {
+          final firstTime = generatedReminders.first.reminderTime;
+          final timeStr = "${firstTime.hour.toString().padLeft(2, '0')}:${firstTime.minute.toString().padLeft(2, '0')}";
+          scheduleMsg += " Reminder sequence created from $timeStr using the new travel-aware format.";
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text(
-                  '${widget.medication == null ? 'Medication added' : 'Medication updated'} successfully')),
+            content: Text(scheduleMsg),
+            duration: const Duration(seconds: 5),
+            backgroundColor: Colors.green,
+          ),
         );
         Navigator.pop(context, medication);
       }
@@ -364,18 +489,18 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFB),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.surface,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           widget.medication == null ? 'Add Medication' : 'Edit Medication',
           style: const TextStyle(
-              color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 18),
+              color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 18),
         ),
       ),
       body: SingleChildScrollView(
@@ -388,12 +513,19 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [const Color(0xFF1565C0), const Color(0xFF1976D2)],
+                  gradient: const LinearGradient(
+                    colors: [AppColors.primary, AppColors.primaryDark],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.primary.withOpacity(0.2),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
                 child: Row(
                   children: [
@@ -468,29 +600,10 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
               _buildDosageCard(),
               const SizedBox(height: 24),
 
-              // Schedule Section
-              _buildSectionHeader('Schedule', Icons.schedule),
+              // Medication Schedule Section
+              _buildSectionHeader('Medication Schedule', Icons.access_time),
               const SizedBox(height: 12),
-
-              // Frequency
-              _buildDropdown(
-                label: 'Frequency',
-                value: _selectedFrequency,
-                items: _frequencies,
-                onChanged: (value) {
-                  setState(() => _selectedFrequency = value);
-                },
-              ),
-              const SizedBox(height: 14),
-
-              // Schedule Times
-              MedicationScheduleCard(
-                frequency: _selectedFrequency,
-                scheduleTimes: _scheduleTimes,
-                dosage: _dosageController.text,
-                onAddTime: () => _selectTime(context, isReminder: false),
-                onRemoveTime: (time) => _removeTime(time, isReminder: false),
-              ),
+              _buildScheduleTimesSection(),
               const SizedBox(height: 24),
 
               // Medical Details Section
@@ -580,20 +693,28 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                 date: _endDate,
                 onTap: () => _selectDate(context, isEndDate: true),
               ),
+              if (_endDate != null && _scheduleTimes.isNotEmpty && int.tryParse(_timesPerDayController.text) != null)
+                const Padding(
+                  padding: EdgeInsets.only(top: 4, left: 4),
+                  child: Text(
+                    'End date calculated automatically based on quantity.',
+                    style: TextStyle(fontSize: 11, color: Colors.blue, fontStyle: FontStyle.italic),
+                  ),
+                ),
               const SizedBox(height: 24),
 
               // Save Button
               Container(
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [const Color(0xFF388E3C), const Color(0xFF2E7D32)],
+                  gradient: const LinearGradient(
+                    colors: [AppColors.success, Color(0xFF2E7D32)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF388E3C).withOpacity(0.3),
+                      color: AppColors.success.withOpacity(0.3),
                       blurRadius: 8,
                       offset: const Offset(0, 4),
                     ),
@@ -932,16 +1053,124 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
     );
   }
 
+  Widget _buildScheduleTimesSection() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'How many times per day?',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _timesPerDayController,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    hintText: 'e.g., 3',
+                    prefixIcon: const Icon(Icons.repeat, size: 20),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              ElevatedButton(
+                onPressed: _autoScheduleTimes,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(0, 48), // Match standard TextField height
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: const Padding(
+                  padding: EdgeInsets.only(bottom: 1), // Optical balance adjustment
+                  child: Text(
+                    'Auto-Schedule',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          const Divider(),
+          const SizedBox(height: 10),
+          const Text(
+            'Current Medication Times',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: Colors.black54,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              ..._scheduleTimes.map((time) => Chip(
+                    label: Text(time,
+                        style: const TextStyle(fontWeight: FontWeight.bold)),
+                    onDeleted: () => _removeTime(time, isReminder: false),
+                    deleteIconColor: Colors.red,
+                    backgroundColor: Colors.blue.withOpacity(0.1),
+                    side: BorderSide(color: Colors.blue.withOpacity(0.2)),
+                  )),
+              ActionChip(
+                avatar: const Icon(Icons.add, size: 18),
+                label: const Text('Add Manually'),
+                onPressed: () => _selectTime(context, isReminder: false),
+                backgroundColor: Colors.blue,
+                labelStyle: const TextStyle(color: Colors.white),
+              ),
+            ],
+          ),
+          if (_scheduleTimes.isEmpty)
+            const Padding(
+              padding: EdgeInsets.only(top: 8),
+              child: Text(
+                'Please add at least one dose time.',
+                style: TextStyle(color: Colors.orange, fontSize: 12),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildSectionHeader(String title, IconData icon) {
     return Row(
       children: [
         Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: const Color(0xFF1565C0).withOpacity(0.1),
+            color: AppColors.primary.withOpacity(0.1),
             borderRadius: BorderRadius.circular(8),
           ),
-          child: Icon(icon, color: const Color(0xFF1565C0), size: 20),
+          child: Icon(icon, color: AppColors.primary, size: 20),
         ),
         const SizedBox(width: 12),
         Text(
@@ -949,7 +1178,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
           style: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.bold,
-            color: Colors.black87,
+            color: AppColors.textPrimary,
           ),
         ),
         const Spacer(),
@@ -957,8 +1186,8 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
           height: 3,
           width: 20,
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [const Color(0xFF1565C0), const Color(0xFF1976D2)],
+            gradient: const LinearGradient(
+              colors: [AppColors.primary, AppColors.primaryDark],
             ),
             borderRadius: BorderRadius.circular(2),
           ),
