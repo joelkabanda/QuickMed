@@ -68,11 +68,20 @@ class NotificationService {
         enableVibration: true,
       );
 
-      await _plugin
-          .resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>()
-          ?.createNotificationChannel(channel);
-      debugPrint("NotificationService: Notification channel created");
+      final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
+      await androidPlugin?.createNotificationChannel(channel);
+
+      const liveRouteChannel = AndroidNotificationChannel(
+        'quickmed_live_route',
+        'Live travel updates',
+        description: 'Real-time route and travel-time updates',
+        importance: Importance.defaultImportance,
+        playSound: false,
+        enableVibration: false,
+      );
+      await androidPlugin?.createNotificationChannel(liveRouteChannel);
+      debugPrint("NotificationService: Notification channels created");
 
       // Request permissions for Android 13+
       debugPrint("NotificationService: Requesting notification permissions...");
@@ -130,6 +139,38 @@ class NotificationService {
     );
 
     const iOSDetails = DarwinNotificationDetails();
+
+    await _plugin.show(
+      id,
+      title,
+      body,
+      NotificationDetails(android: androidDetails, iOS: iOSDetails),
+    );
+  }
+
+
+  Future<void> showLiveTravelNotification({
+    required int id,
+    required String title,
+    required String body,
+  }) async {
+    await init();
+    final androidDetails = AndroidNotificationDetails(
+      'quickmed_live_route',
+      'Live travel updates',
+      channelDescription: 'Real-time route and travel-time updates',
+      importance: Importance.defaultImportance,
+      priority: Priority.defaultPriority,
+      ongoing: true,
+      onlyAlertOnce: true,
+      playSound: false,
+      enableVibration: false,
+      styleInformation: BigTextStyleInformation(body),
+    );
+
+    const iOSDetails = DarwinNotificationDetails(
+      presentSound: false,
+    );
 
     await _plugin.show(
       id,
