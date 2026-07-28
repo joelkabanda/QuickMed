@@ -8,7 +8,6 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:quickmed/models/medication_model.dart';
 import 'package:quickmed/services/database_service.dart';
 import 'package:quickmed/services/reminder_service.dart';
-import 'package:quickmed/services/notification_service.dart';
 import 'package:quickmed/constants/app_colors.dart';
 
 class AddMedicationScreen extends StatefulWidget {
@@ -433,11 +432,18 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
       final dbService = DatabaseService();
       await dbService.saveMedication(userId, medication);
 
-      // Remove every reminder and scheduled notification created by the older
-      // reminder format before generating the new travel-aware sequence.
-      await NotificationService().cancelAll();
-      await dbService.deleteAllReminders(userId);
-      await dbService.deleteAllAppNotifications(userId);
+      // Replace only the reminders linked to this medication. Other medicine
+      // schedules and their notifications must remain untouched.
+      final previousReminders = await dbService.getRemindersForMedication(
+        userId,
+        medication.id,
+      );
+      await ReminderService.cancelMedicationNotifications(previousReminders);
+      await dbService.deleteRemindersForMedication(userId, medication.id);
+      await dbService.deleteAppNotificationsForReminderIds(
+        userId,
+        previousReminders.map((item) => item.id),
+      );
 
       final generatedReminders = ReminderService.buildRemindersForMedication(
         userId: userId,
@@ -458,9 +464,8 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
       if (mounted) {
         String scheduleMsg = 'Medication added.';
         if (generatedReminders.isNotEmpty) {
-          final firstTime = generatedReminders.first.reminderTime;
-          final timeStr = "${firstTime.hour.toString().padLeft(2, '0')}:${firstTime.minute.toString().padLeft(2, '0')}";
-          scheduleMsg += " Reminder sequence created from $timeStr using the new travel-aware format.";
+          scheduleMsg +=
+              ' The five-stage travel-aware reminder sequence was created.';
         }
 
         ScaffoldMessenger.of(context).showSnackBar(
