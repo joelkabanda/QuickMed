@@ -2,14 +2,13 @@ import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:latlong2/latlong.dart';
-import 'package:map_launcher/map_launcher.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:quickmed/models/user_profile_model.dart';
 import 'package:quickmed/services/database_service.dart';
 import 'package:quickmed/services/google_routes_service.dart';
 import 'package:quickmed/services/location_service.dart';
+import 'package:quickmed/services/reminder_service.dart';
 
 import 'location_picker_screen.dart';
 
@@ -28,34 +27,52 @@ class LocationComparisonMapView extends StatefulWidget {
       _LocationComparisonMapViewState();
 }
 
-class _LocationComparisonMapViewState extends State<LocationComparisonMapView> {
-  late final MapController _mapController;
+class _LocationComparisonMapViewState extends State<LocationComparisonMapView>
+    with WidgetsBindingObserver {
+  GoogleMapController? _mapController;
   late SavedPharmacyLocation _destination;
   final DatabaseService _database = DatabaseService();
   final GoogleRoutesService _routes = GoogleRoutesService();
 
   Position? _position;
   StreamSubscription<Position>? _positionSubscription;
-  List<TravelEstimate> _estimates = const [];
-  List<LatLng> _routePoints = const [];
+  Timer? _trafficRefreshTimer;
+  RoutePlan? _routePlan;
+  TravelMode _selectedMode = TravelMode.driving;
+  String? _selectedRouteId;
+  DateTime? _lastUpdatedAt;
+  DateTime? _lastRouteRequestAt;
+  String? _lastReminderRouteSignature;
   bool _loadingLocation = false;
   bool _loadingRoutes = false;
-  bool _liveTracking = false;
+  bool _liveTracking = true;
   String? _routeError;
 
   @override
   void initState() {
     super.initState();
-    _mapController = MapController();
+    WidgetsBinding.instance.addObserver(this);
     _destination = widget.savedLocation;
-    if (widget.showCurrentLocation) _loadCurrentLocation();
+    if (widget.showCurrentLocation) {
+      _loadCurrentLocation();
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _positionSubscription?.cancel();
-    _mapController.dispose();
+    _trafficRefreshTimer?.cancel();
+    _mapController?.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _liveTracking) {
+      _startLiveUpdates();
+      _loadRoutePlan();
+    }
   }
 
   Future<void> _loadCurrentLocation() async {
@@ -64,8 +81,8 @@ class _LocationComparisonMapViewState extends State<LocationComparisonMapView> {
       final position = await LocationService.getCurrentLocation();
       if (!mounted) return;
       setState(() => _position = position);
-      _fitMap();
-      await _loadTravelEstimates();
+      await _loadRoutePlan();
+      _startLiveUpdates();
     } catch (error) {
       if (mounted) {
         setState(() => _routeError = 'Location unavailable: $error');
@@ -75,10 +92,49 @@ class _LocationComparisonMapViewState extends State<LocationComparisonMapView> {
     }
   }
 
-  Future<void> _loadTravelEstimates() async {
-    final current = _position;
-    if (current == null) return;
+  void _startLiveUpdates() {
+    _positionSubscription?.cancel();
+    _trafficRefreshTimer?.cancel();
+    if (!_liveTracking) return;
 
+    _positionSubscription = LocationService.getPositionStream(
+      distanceFilter: 20,
+    ).listen(
+      (position) {
+        if (!mounted) return;
+        setState(() => _position = position);
+        _refreshRoutesThrottled();
+      },
+      onError: (Object error) {
+        if (!mounted) return;
+        setState(() {
+          _liveTracking = false;
+          _routeError = 'Live location error: $error';
+        });
+      },
+    );
+
+    // Traffic-aware travel times are refreshed while this screen is active.
+    _trafficRefreshTimer = Timer.periodic(
+      const Duration(minutes: 1),
+      (_) => _loadRoutePlan(),
+    );
+  }
+
+  void _refreshRoutesThrottled() {
+    final last = _lastRouteRequestAt;
+    if (last != null &&
+        DateTime.now().difference(last) < const Duration(seconds: 20)) {
+      return;
+    }
+    _loadRoutePlan();
+  }
+
+  Future<void> _loadRoutePlan() async {
+    final current = _position;
+    if (current == null || _loadingRoutes) return;
+
+    _lastRouteRequestAt = DateTime.now();
     if (mounted) {
       setState(() {
         _loadingRoutes = true;
@@ -87,52 +143,178 @@ class _LocationComparisonMapViewState extends State<LocationComparisonMapView> {
     }
 
     try {
-      final estimates = await _routes.getTravelEstimates(
+      final plan = await _routes.getRoutePlan(
         originLatitude: current.latitude,
         originLongitude: current.longitude,
         destinationLatitude: _destination.latitude,
         destinationLongitude: _destination.longitude,
       );
-      final preferred = _pickRouteForPolyline(estimates);
-      final decoded = preferred?.encodedPolyline == null
-          ? const <LatLng>[]
-          : _decodePolyline(preferred!.encodedPolyline!);
 
       if (!mounted) return;
+      var selectedMode = _selectedMode;
+      if (plan.routesFor(selectedMode).isEmpty && plan.estimates.isNotEmpty) {
+        selectedMode = plan.estimates.first.mode;
+      }
+      final selectedRoute = plan.shortestRouteFor(selectedMode);
+
       setState(() {
-        _estimates = estimates;
-        _routePoints = decoded;
+        _routePlan = plan;
+        _selectedMode = selectedMode;
+        _selectedRouteId = selectedRoute?.id;
+        _lastUpdatedAt = DateTime.now();
       });
-      _fitMap();
+      await _fitMap();
+      _refreshUpcomingReminderThresholds(plan.estimates);
     } catch (error) {
-      debugPrint('Google route loading failed: $error');
+      debugPrint('Route loading failed: $error');
       if (!mounted) return;
+      final message = error.toString().replaceFirst('Bad state: ', '');
       setState(() {
-        _routeError = error.toString().replaceFirst('Bad state: ', '');
-        _estimates = const [];
-        _routePoints = const [];
+        // Do not remove a valid blue route merely because a later live refresh
+        // encountered a temporary DNS or mobile-network failure.
+        if (_routePlan == null) _routeError = message;
       });
     } finally {
       if (mounted) setState(() => _loadingRoutes = false);
     }
   }
 
-  TravelEstimate? _pickRouteForPolyline(List<TravelEstimate> values) {
-    for (final mode in [
-      TravelMode.driving,
-      TravelMode.twoWheeler,
-      TravelMode.walking,
-      TravelMode.bicycling,
-      TravelMode.transit,
-    ]) {
-      for (final estimate in values) {
-        if (estimate.mode == mode &&
-            estimate.encodedPolyline?.isNotEmpty == true) {
-          return estimate;
-        }
+  void _refreshUpcomingReminderThresholds(List<TravelEstimate> estimates) {
+    if (estimates.isEmpty) return;
+    final ordered = [...estimates]
+      ..sort((a, b) => a.duration.compareTo(b.duration));
+    final walking = ordered.where((item) => item.mode == TravelMode.walking);
+    final slowestForReminder = walking.isNotEmpty ? walking.first : ordered.last;
+    final signature = '${ordered.first.mode.name}:${ordered.first.minutes}:'
+        '${slowestForReminder.mode.name}:${slowestForReminder.minutes}:'
+        '${_destination.pharmacyId}';
+    if (_lastReminderRouteSignature == signature) return;
+    _lastReminderRouteSignature = signature;
+
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null) return;
+    unawaited(
+      ReminderService.refreshUpcomingMedicationNotificationsForUser(
+        userId: userId,
+        destinationName: _destination.pharmacyName,
+        travelEstimates: estimates,
+      ),
+    );
+  }
+
+  List<TravelRoute> get _visibleRoutes {
+    return _routePlan?.routesFor(_selectedMode) ?? const <TravelRoute>[];
+  }
+
+  TravelRoute? get _selectedRoute {
+    final routes = _visibleRoutes;
+    if (routes.isEmpty) return null;
+    for (final route in routes) {
+      if (route.id == _selectedRouteId) return route;
+    }
+    return routes.first;
+  }
+
+  Set<Polyline> _buildPolylines() {
+    final result = <Polyline>{};
+    final routes = _visibleRoutes;
+
+    for (final route in routes.reversed) {
+      final encoded = route.encodedPolyline?.trim() ?? '';
+      if (encoded.isEmpty) continue;
+      final points = _decodePolyline(encoded);
+      if (points.length < 2) continue;
+      final selected = route.id == _selectedRoute?.id;
+
+      if (selected) {
+        // A dark outline under the route makes the active path clear against
+        // roads and buildings, while the blue line marks the route to follow.
+        result.add(
+          Polyline(
+            polylineId: PolylineId('${route.id}_outline'),
+            points: points,
+            width: 13,
+            color: const Color(0xFF17206E),
+            zIndex: 9,
+            startCap: Cap.roundCap,
+            endCap: Cap.roundCap,
+            jointType: JointType.round,
+          ),
+        );
+        result.add(
+          Polyline(
+            polylineId: PolylineId('${route.id}_selected'),
+            points: points,
+            width: 9,
+            color: const Color(0xFF1647F5),
+            zIndex: 10,
+            startCap: Cap.roundCap,
+            endCap: Cap.roundCap,
+            jointType: JointType.round,
+            patterns: const [],
+            consumeTapEvents: true,
+            onTap: () {
+              if (!mounted) return;
+              setState(() => _selectedRouteId = route.id);
+            },
+          ),
+        );
+      } else {
+        result.add(
+          Polyline(
+            polylineId: PolylineId('${route.id}_alternative'),
+            points: points,
+            width: 5,
+            color: Colors.blueGrey.withOpacity(.42),
+            zIndex: 1,
+            startCap: Cap.roundCap,
+            endCap: Cap.roundCap,
+            jointType: JointType.round,
+            patterns: const [],
+            consumeTapEvents: true,
+            onTap: () {
+              if (!mounted) return;
+              setState(() => _selectedRouteId = route.id);
+            },
+          ),
+        );
       }
     }
-    return null;
+    return result;
+  }
+
+  Set<Marker> _buildMarkers() {
+    final destination = LatLng(
+      _destination.latitude,
+      _destination.longitude,
+    );
+    final markers = <Marker>{
+      Marker(
+        markerId: const MarkerId('destination'),
+        position: destination,
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+        infoWindow: InfoWindow(
+          title: _destination.pharmacyName,
+          snippet: _destination.address,
+        ),
+      ),
+    };
+
+    final current = _position;
+    if (current != null) {
+      markers.add(
+        Marker(
+          markerId: const MarkerId('current_location'),
+          position: LatLng(current.latitude, current.longitude),
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+          infoWindow: const InfoWindow(title: 'Current location'),
+        ),
+      );
+    }
+
+    // No duration or time markers are placed on top of the route. Travel times
+    // remain in the information panel below the map.
+    return markers;
   }
 
   List<LatLng> _decodePolyline(String encoded) {
@@ -166,49 +348,61 @@ class _LocationComparisonMapViewState extends State<LocationComparisonMapView> {
     return points;
   }
 
-  void _fitMap() {
-    final current = _position;
-    if (current == null) {
-      _mapController.move(
-        LatLng(_destination.latitude, _destination.longitude),
-        15,
+  Future<void> _fitMap() async {
+    final controller = _mapController;
+    if (controller == null) return;
+
+    final points = <LatLng>[
+      LatLng(_destination.latitude, _destination.longitude),
+      if (_position != null)
+        LatLng(_position!.latitude, _position!.longitude),
+    ];
+    final route = _selectedRoute;
+    if (route?.encodedPolyline?.isNotEmpty == true) {
+      points.addAll(_decodePolyline(route!.encodedPolyline!));
+    }
+    if (points.isEmpty) return;
+
+    if (points.length == 1) {
+      await controller.animateCamera(
+        CameraUpdate.newLatLngZoom(points.first, 15),
       );
       return;
     }
-    final bounds = LatLngBounds(
-      LatLng(current.latitude, current.longitude),
-      LatLng(_destination.latitude, _destination.longitude),
-    );
-    _mapController.fitCamera(
-      CameraFit.bounds(bounds: bounds, padding: const EdgeInsets.all(60)),
+
+    var minLat = points.first.latitude;
+    var maxLat = points.first.latitude;
+    var minLng = points.first.longitude;
+    var maxLng = points.first.longitude;
+    for (final point in points.skip(1)) {
+      if (point.latitude < minLat) minLat = point.latitude;
+      if (point.latitude > maxLat) maxLat = point.latitude;
+      if (point.longitude < minLng) minLng = point.longitude;
+      if (point.longitude > maxLng) maxLng = point.longitude;
+    }
+
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+    if (!mounted) return;
+    await controller.animateCamera(
+      CameraUpdate.newLatLngBounds(
+        LatLngBounds(
+          southwest: LatLng(minLat, minLng),
+          northeast: LatLng(maxLat, maxLng),
+        ),
+        72,
+      ),
     );
   }
 
   void _toggleLiveTracking() {
+    setState(() => _liveTracking = !_liveTracking);
     if (_liveTracking) {
+      _startLiveUpdates();
+      _loadRoutePlan();
+    } else {
       _positionSubscription?.cancel();
-      setState(() => _liveTracking = false);
-      return;
+      _trafficRefreshTimer?.cancel();
     }
-
-    setState(() => _liveTracking = true);
-    _positionSubscription = LocationService.getPositionStream(
-      distanceFilter: 25,
-    ).listen(
-      (position) {
-        if (!mounted) return;
-        setState(() => _position = position);
-        _loadTravelEstimates();
-      },
-      onError: (Object error) {
-        if (mounted) {
-          setState(() {
-            _liveTracking = false;
-            _routeError = 'Live location error: $error';
-          });
-        }
-      },
-    );
   }
 
   Future<void> _editLocation() async {
@@ -221,53 +415,15 @@ class _LocationComparisonMapViewState extends State<LocationComparisonMapView> {
     if (result is! SavedPharmacyLocation || !mounted) return;
 
     final userId = FirebaseAuth.instance.currentUser?.uid;
-    if (userId != null) await _database.saveSavedPharmacyLocation(userId, result);
-    setState(() => _destination = result);
-    await _loadTravelEstimates();
-  }
-
-  Future<void> _openInExternalMap() async {
-    final maps = await MapLauncher.installedMaps;
-    if (!mounted) return;
-    if (maps.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No map application is installed.')),
-      );
-      return;
+    if (userId != null) {
+      await _database.saveSavedPharmacyLocation(userId, result);
     }
-
-    showModalBottomSheet<void>(
-      context: context,
-      builder: (sheetContext) => SafeArea(
-        child: Wrap(
-          children: [
-            for (final map in maps)
-              ListTile(
-                leading: const Icon(Icons.map_outlined, color: Colors.blue),
-                title: Text(map.mapName),
-                subtitle: const Text('Open driving directions'),
-                onTap: () {
-                  map.showDirections(
-                    destination: Coords(
-                      _destination.latitude,
-                      _destination.longitude,
-                    ),
-                    destinationTitle: _destination.pharmacyName,
-                    origin: _position == null
-                        ? null
-                        : Coords(
-                            _position!.latitude,
-                            _position!.longitude,
-                          ),
-                    directionsMode: DirectionsMode.driving,
-                  );
-                  Navigator.pop(sheetContext);
-                },
-              ),
-          ],
-        ),
-      ),
-    );
+    setState(() {
+      _destination = result;
+      _selectedRouteId = null;
+      _lastReminderRouteSignature = null;
+    });
+    await _loadRoutePlan();
   }
 
   IconData _modeIcon(TravelMode mode) {
@@ -285,11 +441,28 @@ class _LocationComparisonMapViewState extends State<LocationComparisonMapView> {
     }
   }
 
+  String _updatedText() {
+    final value = _lastUpdatedAt;
+    if (value == null) return 'Loading road route';
+    final minute = value.minute.toString().padLeft(2, '0');
+    final prefix = _routePlan?.hasLiveTraffic == true
+        ? 'Live traffic'
+        : 'Road route';
+    return '$prefix • ${value.hour}:$minute';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final destinationPoint =
-        LatLng(_destination.latitude, _destination.longitude);
-    final current = _position;
+    final destinationPoint = LatLng(
+      _destination.latitude,
+      _destination.longitude,
+    );
+    final estimates = _routePlan?.estimates ?? const <TravelEstimate>[];
+    final visibleRoutes = _visibleRoutes;
+    final selectedRoute = _selectedRoute;
+    final routeStatusColor = _routePlan?.hasLiveTraffic == true
+        ? Colors.green
+        : Colors.blueGrey;
 
     return Scaffold(
       appBar: AppBar(
@@ -299,8 +472,8 @@ class _LocationComparisonMapViewState extends State<LocationComparisonMapView> {
         title: Text(_destination.pharmacyName),
         actions: [
           IconButton(
-            tooltip: 'Refresh travel times',
-            onPressed: _loadingRoutes ? null : _loadTravelEstimates,
+            tooltip: 'Refresh live routes',
+            onPressed: _loadingRoutes ? null : _loadRoutePlan,
             icon: const Icon(Icons.refresh_rounded),
           ),
           IconButton(
@@ -309,11 +482,11 @@ class _LocationComparisonMapViewState extends State<LocationComparisonMapView> {
             icon: const Icon(Icons.edit_location_alt_outlined),
           ),
           IconButton(
-            tooltip: _liveTracking ? 'Stop live tracking' : 'Track live location',
+            tooltip: _liveTracking ? 'Stop live tracking' : 'Start live tracking',
             onPressed: _toggleLiveTracking,
             icon: Icon(
               _liveTracking ? Icons.gps_fixed_rounded : Icons.gps_not_fixed,
-              color: _liveTracking ? Colors.red : null,
+              color: _liveTracking ? Colors.blue : null,
             ),
           ),
         ],
@@ -323,79 +496,51 @@ class _LocationComparisonMapViewState extends State<LocationComparisonMapView> {
           Expanded(
             child: Stack(
               children: [
-                FlutterMap(
-                  mapController: _mapController,
-                  options: MapOptions(center: destinationPoint, zoom: 15),
-                  children: [
-                    TileLayer(
-                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                      userAgentPackageName: 'com.example.quickmed',
-                    ),
-                    if (_routePoints.isNotEmpty)
-                      PolylineLayer(
-                        polylines: [
-                          Polyline(
-                            points: _routePoints,
-                            strokeWidth: 5,
-                            color: Colors.blue,
-                          ),
-                        ],
-                      )
-                    else if (current != null)
-                      PolylineLayer(
-                        polylines: [
-                          Polyline(
-                            points: [
-                              LatLng(current.latitude, current.longitude),
-                              destinationPoint,
-                            ],
-                            strokeWidth: 3,
-                            color: Colors.blue.withOpacity(.45),
-                            isDotted: true,
-                          ),
-                        ],
-                      ),
-                    MarkerLayer(
-                      markers: [
-                        if (current != null)
-                          Marker(
-                            point: LatLng(current.latitude, current.longitude),
-                            width: 52,
-                            height: 52,
-                            child: const Icon(
-                              Icons.my_location_rounded,
-                              size: 38,
-                              color: Colors.blue,
-                            ),
-                          ),
-                        Marker(
-                          point: destinationPoint,
-                          width: 58,
-                          height: 58,
-                          child: const Icon(
-                            Icons.location_on_rounded,
-                            size: 48,
-                            color: Colors.green,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                GoogleMap(
+                  initialCameraPosition: CameraPosition(
+                    target: destinationPoint,
+                    zoom: 15,
+                  ),
+                  onMapCreated: (controller) {
+                    _mapController = controller;
+                    _fitMap();
+                  },
+                  mapType: MapType.normal,
+                  myLocationEnabled: _position != null,
+                  myLocationButtonEnabled: false,
+                  zoomControlsEnabled: false,
+                  mapToolbarEnabled: false,
+                  trafficEnabled: true,
+                  compassEnabled: true,
+                  buildingsEnabled: true,
+                  markers: _buildMarkers(),
+                  polylines: _buildPolylines(),
                 ),
                 if (_loadingLocation || _loadingRoutes)
                   const Positioned(
-                    top: 14,
-                    left: 14,
-                    right: 14,
+                    top: 0,
+                    left: 0,
+                    right: 0,
                     child: LinearProgressIndicator(minHeight: 4),
                   ),
+                Positioned(
+                  right: 12,
+                  bottom: 12,
+                  child: FloatingActionButton.small(
+                    heroTag: 'recenter_route_map',
+                    backgroundColor: Colors.white,
+                    foregroundColor: Colors.blue,
+                    onPressed: _fitMap,
+                    child: const Icon(Icons.center_focus_strong_rounded),
+                  ),
+                ),
               ],
             ),
           ),
           Container(
             width: double.infinity,
-            constraints: const BoxConstraints(maxHeight: 340),
-            padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+            constraints: const BoxConstraints(maxHeight: 355),
+            padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
             decoration: const BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -411,11 +556,46 @@ class _LocationComparisonMapViewState extends State<LocationComparisonMapView> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Destination', style: TextStyle(color: Colors.grey)),
-                  const SizedBox(height: 4),
-                  Text(
-                    _destination.pharmacyName,
-                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Destination',
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              _destination.pharmacyName,
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: routeStatusColor.withOpacity(.10),
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        child: Text(
+                          _updatedText(),
+                          style: TextStyle(
+                            color: routeStatusColor,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -423,23 +603,9 @@ class _LocationComparisonMapViewState extends State<LocationComparisonMapView> {
                     style: const TextStyle(color: Colors.grey),
                   ),
                   const SizedBox(height: 14),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'Travel time to destination',
-                          style: TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                      ),
-                      if (_estimates.isNotEmpty)
-                        Text(
-                          _estimates.first.distanceText,
-                          style: const TextStyle(
-                            color: Colors.blue,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                    ],
+                  const Text(
+                    'Travel time by transport',
+                    style: TextStyle(fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 10),
                   if (_routeError != null)
@@ -450,69 +616,181 @@ class _LocationComparisonMapViewState extends State<LocationComparisonMapView> {
                         color: Colors.orange.shade50,
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Text(
-                        _routeError!,
-                        style: TextStyle(color: Colors.orange.shade900),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.cloud_off_rounded,
+                            color: Colors.orange.shade900,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              _routeError!,
+                              style: TextStyle(color: Colors.orange.shade900),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: _loadingRoutes ? null : _loadRoutePlan,
+                            child: const Text('Retry'),
+                          ),
+                        ],
                       ),
                     )
-                  else if (_estimates.isEmpty && !_loadingRoutes)
+                  else if (estimates.isEmpty && !_loadingRoutes)
                     const Text('No travel estimates are available for this route.')
                   else
                     SizedBox(
-                      height: 104,
+                      height: 108,
                       child: ListView.separated(
                         scrollDirection: Axis.horizontal,
-                        itemCount: _estimates.length,
+                        itemCount: estimates.length,
                         separatorBuilder: (_, __) => const SizedBox(width: 10),
                         itemBuilder: (_, index) {
-                          final estimate = _estimates[index];
-                          return Container(
-                            width: 118,
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF3F7FD),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(_modeIcon(estimate.mode), color: Colors.blue),
-                                const SizedBox(height: 5),
-                                Text(
-                                  estimate.durationText,
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w800,
+                          final estimate = estimates[index];
+                          final selected = estimate.mode == _selectedMode;
+                          return InkWell(
+                            borderRadius: BorderRadius.circular(14),
+                            onTap: () {
+                              final shortest =
+                                  _routePlan?.shortestRouteFor(estimate.mode);
+                              setState(() {
+                                _selectedMode = estimate.mode;
+                                _selectedRouteId = shortest?.id;
+                              });
+                              _fitMap();
+                            },
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 180),
+                              width: 124,
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: selected
+                                    ? Colors.blue.shade50
+                                    : Colors.grey.shade50,
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: selected
+                                      ? Colors.blue
+                                      : Colors.grey.shade200,
+                                  width: selected ? 1.5 : 1,
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Icon(
+                                    _modeIcon(estimate.mode),
+                                    color: selected ? Colors.blue : Colors.black54,
                                   ),
-                                ),
-                                Text(
-                                  estimate.mode.label,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontSize: 11, color: Colors.grey),
-                                ),
-                              ],
+                                  const Spacer(),
+                                  Text(
+                                    estimate.mode.label,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
+                                  Text(
+                                    estimate.durationText,
+                                    style: const TextStyle(
+                                      fontSize: 17,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           );
                         },
                       ),
                     ),
-                  const SizedBox(height: 14),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: _openInExternalMap,
-                      icon: const Icon(Icons.navigation_rounded),
-                      label: const Text('Open Navigation'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
+                  if (visibleRoutes.length > 1) ...[
+                    const SizedBox(height: 14),
+                    const Text(
+                      'Available routes',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      height: 42,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: visibleRoutes.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 8),
+                        itemBuilder: (_, index) {
+                          final route = visibleRoutes[index];
+                          final selected = route.id == selectedRoute?.id;
+                          return ChoiceChip(
+                            selected: selected,
+                            onSelected: (_) {
+                              setState(() => _selectedRouteId = route.id);
+                              _fitMap();
+                            },
+                            label: Text(
+                              'Route ${index + 1} • ${route.durationText}',
+                            ),
+                            backgroundColor: Colors.grey.shade50,
+                            selectedColor: Colors.blue.shade50,
+                            side: BorderSide(
+                              color: selected
+                                  ? Colors.blue
+                                  : Colors.grey.shade300,
+                            ),
+                          );
+                        },
                       ),
                     ),
+                  ],
+                  const SizedBox(height: 12),
+                  if (selectedRoute != null)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.route_rounded, color: Colors.blue),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              '${selectedRoute.label}: '
+                              '${selectedRoute.durationText}, '
+                              '${selectedRoute.distanceText}. '
+                              'The selected route is shown with a thick blue line.',
+                              style: TextStyle(color: Colors.blue.shade900),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  if (_routePlan?.usesFallbackRoutes == true) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.blueGrey.shade50,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Text(
+                        'The blue track follows the road. Google live traffic was '
+                        'not available for every transport mode, so the missing '
+                        'times are road-distance estimates.',
+                        style: TextStyle(color: Colors.black54, fontSize: 12),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 8),
+                  Text(
+                    _routePlan?.hasLiveTraffic == true
+                        ? 'Navigation stays inside QuickMed. Route times refresh '
+                            'from the current location and Google live traffic.'
+                        : 'Navigation stays inside QuickMed. The road route refreshes '
+                            'from the current location while this screen is open.',
+                    style: const TextStyle(color: Colors.black54, fontSize: 12),
                   ),
                 ],
               ),
