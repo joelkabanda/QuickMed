@@ -51,6 +51,31 @@ class DatabaseService {
     }
   }
 
+
+  /// Deletes every medication owned by the signed-in user.
+  Future<int> deleteAllMedications(String userId) async {
+    final snapshot = await _db
+        .collection('medications')
+        .where('userId', isEqualTo: userId)
+        .get();
+    if (snapshot.docs.isEmpty) return 0;
+
+    const batchLimit = 450;
+    var deleted = 0;
+    for (var start = 0; start < snapshot.docs.length; start += batchLimit) {
+      final batch = _db.batch();
+      final end = (start + batchLimit < snapshot.docs.length)
+          ? start + batchLimit
+          : snapshot.docs.length;
+      for (final doc in snapshot.docs.sublist(start, end)) {
+        batch.delete(doc.reference);
+        deleted++;
+      }
+      await batch.commit();
+    }
+    return deleted;
+  }
+
   /// Save reminder record
   Future<void> saveReminder(Reminder reminder) async {
     try {
@@ -100,6 +125,42 @@ class DatabaseService {
   }
 
 
+  /// Returns all reminder records belonging to one medication.
+  Future<List<Reminder>> getRemindersForMedication(
+    String userId,
+    String medicationId,
+  ) async {
+    final snapshot = await _db
+        .collection('reminders')
+        .where('userId', isEqualTo: userId)
+        .get();
+    return snapshot.docs
+        .where((doc) => doc.data()['medicationId'] == medicationId)
+        .map((doc) => Reminder.fromMap({...doc.data(), 'id': doc.id}))
+        .toList();
+  }
+
+  /// Deletes reminder records belonging to one medication.
+  Future<int> deleteRemindersForMedication(
+    String userId,
+    String medicationId,
+  ) async {
+    final snapshot = await _db
+        .collection('reminders')
+        .where('userId', isEqualTo: userId)
+        .get();
+    final matches = snapshot.docs
+        .where((doc) => doc.data()['medicationId'] == medicationId)
+        .toList();
+    if (matches.isEmpty) return 0;
+    final batch = _db.batch();
+    for (final doc in matches) {
+      batch.delete(doc.reference);
+    }
+    await batch.commit();
+    return matches.length;
+  }
+
   /// Delete every reminder owned by the signed-in user.
   Future<int> deleteAllReminders(String userId) async {
     final snapshot = await _db
@@ -146,11 +207,52 @@ class DatabaseService {
     await ref.delete();
   }
 
+  /// Deletes in-app notification history linked to reminder IDs.
+  Future<void> deleteAppNotificationsForReminderIds(
+    String userId,
+    Iterable<String> reminderIds,
+  ) async {
+    final prefixes = reminderIds.map((id) => '${id}_').toList();
+    if (prefixes.isEmpty) return;
+    final snapshot = await _db
+        .collection('app_notifications')
+        .where('userId', isEqualTo: userId)
+        .get();
+    final matches = snapshot.docs
+        .where((doc) => prefixes.any((prefix) => doc.id.startsWith(prefix)))
+        .toList();
+    if (matches.isEmpty) return;
+    const batchLimit = 450;
+    for (var start = 0; start < matches.length; start += batchLimit) {
+      final batch = _db.batch();
+      final end = (start + batchLimit < matches.length)
+          ? start + batchLimit
+          : matches.length;
+      for (final doc in matches.sublist(start, end)) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+    }
+  }
+
   Future<void> deleteAllAppNotifications(String userId) async {
-    final snapshot = await _db.collection('app_notifications').where('userId', isEqualTo: userId).get();
-    final batch = _db.batch();
-    for (final doc in snapshot.docs) { batch.delete(doc.reference); }
-    await batch.commit();
+    final snapshot = await _db
+        .collection('app_notifications')
+        .where('userId', isEqualTo: userId)
+        .get();
+    if (snapshot.docs.isEmpty) return;
+
+    const batchLimit = 450;
+    for (var start = 0; start < snapshot.docs.length; start += batchLimit) {
+      final batch = _db.batch();
+      final end = (start + batchLimit < snapshot.docs.length)
+          ? start + batchLimit
+          : snapshot.docs.length;
+      for (final doc in snapshot.docs.sublist(start, end)) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+    }
   }
 
   /// Update reminder status
