@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart' as geocoding;
@@ -28,33 +29,66 @@ class LocationService {
     return await Geolocator.checkPermission();
   }
 
-  /// Get current user location
+  /// Get the best available current location.
+  ///
+  /// A fresh high-accuracy fix is preferred. If GPS takes too long, QuickMed
+  /// uses the last known device position so route reminders can still be
+  /// prepared instead of failing with a TimeoutException.
   static Future<Position> getCurrentLocation() async {
+    final permission = await checkLocationPermission();
+    if (permission == LocationPermission.deniedForever) {
+      throw Exception(
+        'Location permissions are permanently denied. Enable location access '
+        'for QuickMed in Android settings.',
+      );
+    }
+
+    if (permission == LocationPermission.denied) {
+      final newPermission = await requestLocationPermission();
+      if (newPermission == LocationPermission.denied ||
+          newPermission == LocationPermission.deniedForever) {
+        throw Exception('Location permission was denied.');
+      }
+    }
+
+    final isEnabled = await isLocationServiceEnabled();
+    if (!isEnabled) {
+      throw Exception(
+        'Location services are disabled. Turn on Location, then try again.',
+      );
+    }
+
+    Position? lastKnown;
     try {
-      final permission = await checkLocationPermission();
-      if (permission == LocationPermission.deniedForever) {
-        throw Exception('Location permissions are permanently denied. Please enable in app settings.');
-      }
+      lastKnown = await Geolocator.getLastKnownPosition();
+    } catch (_) {
+      // A last-known fix is optional; continue with a fresh request.
+    }
 
-      if (permission == LocationPermission.denied) {
-        final newPermission = await requestLocationPermission();
-        if (newPermission == LocationPermission.denied ||
-            newPermission == LocationPermission.deniedForever) {
-          throw Exception('Location permission denied by user.');
-        }
-      }
-
-      final isEnabled = await isLocationServiceEnabled();
-      if (!isEnabled) {
-        throw Exception('Location services are disabled on your device. Please enable them in settings.');
-      }
-
+    try {
       return await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 10),
+        timeLimit: const Duration(seconds: 18),
       );
-    } catch (e) {
-      throw Exception('Failed to get location: $e');
+    } on TimeoutException {
+      if (lastKnown != null) return lastKnown;
+    } catch (error) {
+      if (lastKnown != null) return lastKnown;
+      // Retry once below with a less demanding accuracy setting.
+    }
+
+    try {
+      return await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.medium,
+        timeLimit: const Duration(seconds: 20),
+      );
+    } on TimeoutException {
+      throw Exception(
+        'The phone could not obtain a GPS position. Move near a window or '
+        'outdoors, keep Location enabled, and tap Retry.',
+      );
+    } catch (error) {
+      throw Exception('Failed to get location: $error');
     }
   }
 
@@ -166,7 +200,6 @@ class LocationService {
       locationSettings: LocationSettings(
         accuracy: LocationAccuracy.high,
         distanceFilter: distanceFilter,
-        timeLimit: const Duration(seconds: 10),
       ),
     );
   }
