@@ -1,41 +1,37 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
-import 'package:quickmed/services/location_service.dart';
-import 'package:quickmed/models/user_profile_model.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:quickmed/models/user_profile_model.dart';
+import 'package:quickmed/services/location_service.dart';
 
 class LocationPickerScreen extends StatefulWidget {
-  final SavedPharmacyLocation? initialLocation;
-  final VoidCallback? onLocationSelected;
-
   const LocationPickerScreen({
     super.key,
     this.initialLocation,
     this.onLocationSelected,
   });
 
+  final SavedPharmacyLocation? initialLocation;
+  final VoidCallback? onLocationSelected;
+
   @override
   State<LocationPickerScreen> createState() => _LocationPickerScreenState();
 }
 
 class _LocationPickerScreenState extends State<LocationPickerScreen> {
-  late MapController _mapController;
-  late TextEditingController _nameController;
-  late TextEditingController _addressController;
-  double _selectedLat = 0.0;
-  double _selectedLon = 0.0;
+  GoogleMapController? _mapController;
+  late final TextEditingController _nameController;
+  late final TextEditingController _addressController;
+  double _selectedLat = 0;
+  double _selectedLon = 0;
   bool _isLoadingLocation = false;
   bool _isReverseGeocoding = false;
   String? _errorMessage;
-  String? _addressLoadingMessage;
-
   Position? _currentPosition;
 
   @override
   void initState() {
     super.initState();
-    _mapController = MapController();
     _nameController = TextEditingController(
       text: widget.initialLocation?.pharmacyName ?? '',
     );
@@ -51,14 +47,15 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   void dispose() {
     _nameController.dispose();
     _addressController.dispose();
-    _mapController.dispose();
+    _mapController?.dispose();
     super.dispose();
   }
 
   Future<void> _loadCurrentLocation() async {
-    setState(() => _isLoadingLocation = true);
+    if (mounted) setState(() => _isLoadingLocation = true);
     try {
       final position = await LocationService.getCurrentLocation();
+      if (!mounted) return;
       setState(() {
         _currentPosition = position;
         if (widget.initialLocation == null) {
@@ -66,48 +63,60 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
           _selectedLon = position.longitude;
         }
       });
-      _mapController.move(
+      await _moveCameraToSelection();
+      if (widget.initialLocation == null) await _reverseGeocode();
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Could not get current location: $error';
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _isLoadingLocation = false);
+    }
+  }
+
+  Future<void> _moveCameraToSelection() async {
+    final controller = _mapController;
+    if (controller == null) return;
+    await controller.animateCamera(
+      CameraUpdate.newLatLngZoom(
         LatLng(_selectedLat, _selectedLon),
         15,
-      );
-      if (widget.initialLocation == null) {
-        await _reverseGeocode();
-      }
-    } catch (e) {
-      setState(() => _errorMessage = 'Could not get current location: $e');
-    } finally {
-      if (mounted) {
-        setState(() => _isLoadingLocation = false);
-      }
-    }
+      ),
+    );
   }
 
   Future<void> _reverseGeocode() async {
     if (_isReverseGeocoding) return;
-    
     setState(() => _isReverseGeocoding = true);
     try {
       final address = await LocationService.getAddressFromCoordinates(
         _selectedLat,
         _selectedLon,
       );
+      if (!mounted) return;
+      _addressController.text = address;
+      setState(() => _errorMessage = null);
+    } catch (error) {
       if (mounted) {
-        _addressController.text = address;
-        setState(() => _addressLoadingMessage = null);
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _errorMessage = 'Could not get address: $e');
+        setState(() => _errorMessage = 'Could not get address: $error');
       }
     } finally {
-      if (mounted) {
-        setState(() => _isReverseGeocoding = false);
-      }
+      if (mounted) setState(() => _isReverseGeocoding = false);
     }
   }
 
+  Future<void> _selectPoint(LatLng point) async {
+    setState(() {
+      _selectedLat = point.latitude;
+      _selectedLon = point.longitude;
+    });
+    await _reverseGeocode();
+  }
+
   void _saveLocation() {
-    if (_nameController.text.isEmpty) {
+    if (_nameController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter a location name')),
       );
@@ -116,52 +125,50 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
 
     final location = SavedPharmacyLocation(
       pharmacyId: widget.initialLocation?.pharmacyId ?? 'custom_location',
-      pharmacyName: _nameController.text,
+      pharmacyName: _nameController.text.trim(),
       latitude: _selectedLat,
       longitude: _selectedLon,
-      address: _addressController.text.isNotEmpty
-          ? _addressController.text
+      address: _addressController.text.trim().isNotEmpty
+          ? _addressController.text.trim()
           : '$_selectedLat, $_selectedLon',
       savedAt: DateTime.now(),
     );
 
+    widget.onLocationSelected?.call();
     Navigator.pop(context, location);
   }
 
-  void _centerMapOnCurrentLocation() async {
-    setState(() => _isLoadingLocation = true);
+  Future<void> _centerMapOnCurrentLocation() async {
+    if (mounted) setState(() => _isLoadingLocation = true);
     try {
       final position = await LocationService.getCurrentLocation();
+      if (!mounted) return;
       setState(() {
         _currentPosition = position;
         _selectedLat = position.latitude;
         _selectedLon = position.longitude;
-        if (_nameController.text.isEmpty) {
+        if (_nameController.text.trim().isEmpty) {
           _nameController.text = 'My Current Location';
         }
       });
-      _mapController.move(
-        LatLng(_selectedLat, _selectedLon),
-        15,
-      );
+      await _moveCameraToSelection();
       await _reverseGeocode();
-    } catch (e) {
+    } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
+          SnackBar(content: Text('Error: $error')),
         );
       }
     } finally {
-      if (mounted) {
-        setState(() => _isLoadingLocation = false);
-      }
+      if (mounted) setState(() => _isLoadingLocation = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final isEditing = widget.initialLocation != null;
-    
+    final selectedPoint = LatLng(_selectedLat, _selectedLon);
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.white,
@@ -189,78 +196,43 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
             flex: 2,
             child: Stack(
               children: [
-                FlutterMap(
-                  mapController: _mapController,
-                  options: MapOptions(
-                    center: LatLng(_selectedLat, _selectedLon),
+                GoogleMap(
+                  initialCameraPosition: CameraPosition(
+                    target: selectedPoint,
                     zoom: 15,
-                    onTap: (tapPosition, point) {
-                      setState(() {
-                        _selectedLat = point.latitude;
-                        _selectedLon = point.longitude;
-                        _addressLoadingMessage = 'Getting address...';
-                      });
-                      _reverseGeocode();
-                    },
                   ),
-                  children: [
-                    TileLayer(
-                      urlTemplate:
-                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                      userAgentPackageName: 'com.quickmed.app',
+                  onMapCreated: (controller) {
+                    _mapController = controller;
+                    _moveCameraToSelection();
+                  },
+                  onTap: _selectPoint,
+                  mapType: MapType.normal,
+                  mapToolbarEnabled: false,
+                  zoomControlsEnabled: false,
+                  myLocationEnabled: _currentPosition != null,
+                  myLocationButtonEnabled: false,
+                  compassEnabled: true,
+                  markers: {
+                    Marker(
+                      markerId: const MarkerId('selected_destination'),
+                      position: selectedPoint,
+                      draggable: true,
+                      onDragEnd: _selectPoint,
+                      icon: BitmapDescriptor.defaultMarkerWithHue(
+                        BitmapDescriptor.hueGreen,
+                      ),
+                      infoWindow: const InfoWindow(
+                        title: 'Selected destination',
+                      ),
                     ),
-                    MarkerLayer(
-                      markers: [
-                        // Selected Location Marker (The saved location)
-                        Marker(
-                          point: LatLng(_selectedLat, _selectedLon),
-                          width: 80,
-                          height: 80,
-                          alignment: Alignment.bottomCenter,
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(6),
-                                decoration: BoxDecoration(
-                                  color: Colors.green,
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: Colors.white,
-                                    width: 3,
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withValues(alpha: 0.3),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ],
-                                ),
-                                child: const Icon(
-                                  Icons.location_on,
-                                  color: Colors.white,
-                                  size: 26,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                  },
                 ),
                 if (_isLoadingLocation)
-                  Center(
-                    child: Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.black87,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const CircularProgressIndicator(
-                        valueColor:
-                            AlwaysStoppedAnimation<Color>(Colors.white),
+                  const Center(
+                    child: Card(
+                      child: Padding(
+                        padding: EdgeInsets.all(16),
+                        child: CircularProgressIndicator(),
                       ),
                     ),
                   ),
@@ -271,21 +243,20 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,
-                      vertical: 8,
+                      vertical: 9,
                     ),
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(10),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.1),
+                          color: Colors.black.withOpacity(.12),
                           blurRadius: 8,
                         ),
                       ],
                     ),
-                    child: Text(
-                      'Tap on map to select location',
-                      style: Theme.of(context).textTheme.labelMedium,
+                    child: const Text(
+                      'Tap the Google Map or drag the marker to select a destination.',
                     ),
                   ),
                 ),
@@ -301,18 +272,16 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                 children: [
                   if (_errorMessage != null)
                     Container(
+                      width: double.infinity,
                       padding: const EdgeInsets.all(8),
                       margin: const EdgeInsets.only(bottom: 12),
                       decoration: BoxDecoration(
-                        color: Colors.red.withValues(alpha: 0.1),
+                        color: Colors.red.withOpacity(.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
                         _errorMessage!,
-                        style: const TextStyle(
-                          color: Colors.red,
-                          fontSize: 12,
-                        ),
+                        style: const TextStyle(color: Colors.red, fontSize: 12),
                       ),
                     ),
                   Text(
@@ -331,11 +300,11 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                         borderRadius: BorderRadius.circular(8),
                       ),
                       prefixIcon: const Icon(Icons.location_on_outlined),
-                      suffixIcon: _nameController.text.isNotEmpty
-                          ? Icon(Icons.check, color: Colors.green)
+                      suffixIcon: _nameController.text.trim().isNotEmpty
+                          ? const Icon(Icons.check, color: Colors.green)
                           : null,
                     ),
-                    onChanged: (value) => setState(() {}),
+                    onChanged: (_) => setState(() {}),
                   ),
                   const SizedBox(height: 12),
                   TextField(
@@ -350,40 +319,34 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                       ),
                       prefixIcon: const Icon(Icons.description_outlined),
                       suffixIcon: _isReverseGeocoding
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
+                          ? const Padding(
+                              padding: EdgeInsets.all(12),
+                              child: SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              ),
                             )
                           : null,
                     ),
                   ),
                   const SizedBox(height: 12),
                   Container(
+                    width: double.infinity,
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: Colors.blue.withValues(alpha: 0.1),
+                      color: Colors.blue.withOpacity(.1),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
+                      border: Border.all(color: Colors.blue.withOpacity(.3)),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Current Location Coordinates:',
-                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                color: Colors.blue,
-                                fontWeight: FontWeight.bold,
-                              ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '${_currentPosition?.latitude.toStringAsFixed(4) ?? _selectedLat.toStringAsFixed(4)}, ${_currentPosition?.longitude.toStringAsFixed(4) ?? _selectedLon.toStringAsFixed(4)}',
-                          style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                                color: Colors.blue,
-                              ),
-                        ),
-                      ],
+                    child: Text(
+                      'Selected coordinates: '
+                      '${_selectedLat.toStringAsFixed(5)}, '
+                      '${_selectedLon.toStringAsFixed(5)}',
+                      style: const TextStyle(
+                        color: Colors.blue,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -392,7 +355,9 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                     child: ElevatedButton.icon(
                       onPressed: _saveLocation,
                       icon: const Icon(Icons.check),
-                      label: Text(isEditing ? 'Update Location' : 'Save Location'),
+                      label: Text(
+                        isEditing ? 'Update Location' : 'Save Location',
+                      ),
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         backgroundColor: Colors.green,
