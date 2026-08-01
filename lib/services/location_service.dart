@@ -26,11 +26,6 @@ class LocationService {
     return await Geolocator.checkPermission();
   }
 
-  /// Get the best available current location.
-  ///
-  /// A fresh high-accuracy fix is preferred. If GPS takes too long, QuickMed
-  /// uses the last known device position so route reminders can still be
-  /// prepared instead of failing with a TimeoutException.
   static Future<Position> getCurrentLocation() async {
     final permission = await checkLocationPermission();
     if (permission == LocationPermission.deniedForever) {
@@ -59,7 +54,6 @@ class LocationService {
     try {
       lastKnown = await Geolocator.getLastKnownPosition();
     } catch (_) {
-      // A last-known fix is optional; continue with a fresh request.
     }
 
     try {
@@ -71,7 +65,6 @@ class LocationService {
       if (lastKnown != null) return lastKnown;
     } catch (error) {
       if (lastKnown != null) return lastKnown;
-      // Retry once below with a less demanding accuracy setting.
     }
 
     try {
