@@ -1,66 +1,8 @@
-// import 'package:flutter/material.dart';
-
-// import '../../../constants/app_colors.dart';
-
-
-// class HeroCard extends StatelessWidget {
-//   const HeroCard({super.key});
-
-
-//   @override
-//   Widget build(BuildContext context) {
-
-//     return Container(
-
-//       padding: const EdgeInsets.all(20),
-
-//       decoration: BoxDecoration(
-
-//         borderRadius: BorderRadius.circular(24),
-
-//         gradient: LinearGradient(
-
-//           colors: [
-//             AppColors.primary,
-//             AppColors.primaryDark,
-//           ],
-
-//           begin: Alignment.topLeft,
-//           end: Alignment.bottomRight,
-
-//         ),
-
-//         boxShadow: [
-
-//           BoxShadow(
-//             color: AppColors.primary.withOpacity(0.25),
-//             blurRadius: 20,
-//             offset: const Offset(0, 10),
-//           ),
-
-//         ],
-
-//       ),
-
-
-//       child: Column(
-
-//         crossAxisAlignment: CrossAxisAlignment.start,
-
-//         children: [
-
-
 //           Row(
-
 //             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-
 //             children: [
-
-
 //               Column(
-
 //                 crossAxisAlignment: CrossAxisAlignment.start,
-
 //                 children: [
 
 
