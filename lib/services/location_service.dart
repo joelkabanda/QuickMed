@@ -82,14 +82,13 @@ class LocationService {
     }
   }
 
-  /// Calculate distance between two points in kilometers
   static double calculateDistance(
     double lat1,
     double lon1,
     double lat2,
     double lon2,
   ) {
-    const double radiusOfEarth = 6371; // Radius of the earth in km
+    const double radiusOfEarth = 6371;
     final double latDistance = _degreesToRadians(lat2 - lat1);
     final double lonDistance = _degreesToRadians(lon2 - lon1);
     final double a = sin(latDistance / 2) * sin(latDistance / 2) +
@@ -101,12 +100,10 @@ class LocationService {
     return radiusOfEarth * c;
   }
 
-  /// Calculate estimated time to reach destination in minutes
   static int calculateEstimatedTimeMinutes(double distanceKm) {
     return ((distanceKm / avgSpeedKmH) * 60).ceil();
   }
 
-  /// Calculate both distance and estimated time
   static Map<String, dynamic> calculateDistanceAndTime(
     double userLat,
     double userLon,
@@ -133,7 +130,6 @@ class LocationService {
     }
   }
 
-  /// Get address from coordinates
   static Future<String> getAddressFromCoordinates(
     double latitude,
     double longitude,
@@ -151,7 +147,6 @@ class LocationService {
     }
   }
 
-  /// Get coordinates from address
   static Future<List<geocoding.Location>> getCoordinatesFromAddress(
     String address,
   ) async {
@@ -181,7 +176,6 @@ class LocationService {
     }
   }
 
-  /// Get real-time position stream for continuous location tracking
   static Stream<Position> getPositionStream({
     int distanceFilter = 10,
     int intervalDuration = 1000,
@@ -194,7 +188,6 @@ class LocationService {
     );
   }
 
-  /// Calculate distance and time together
   static Future<Map<String, dynamic>> calculateDistanceAndTimeAsync(
     double userLat,
     double userLon,
@@ -204,7 +197,6 @@ class LocationService {
     return calculateDistanceAndTime(userLat, userLon, destLat, destLon);
   }
 
-  /// Get route coordinates from OSRM (Open Source Routing Machine)
   static Future<List<Map<String, double>>> getRouteCoordinates(
     double startLat,
     double startLon,
@@ -219,7 +211,6 @@ class LocationService {
     }
   }
 
-  /// Get route details including distance and duration
   static Future<Map<String, dynamic>> getRouteDetails(
     double startLat,
     double startLon,
@@ -233,7 +224,6 @@ class LocationService {
     }
   }
 
-  /// Get full route information including coordinates, distance, and duration
   static Future<Map<String, dynamic>> getFullRouteInfo(
     double startLat,
     double startLon,
@@ -285,8 +275,6 @@ class LocationService {
   }
 
   static String _formatDurationText(int seconds) {
-    // We add a 100% buffer (multiplier of 2.0) to OSRM's raw 5km/h duration 
-    // to reflect a much slower 2.5km/h walking pace and account for city delays.
     final adjustedMinutes = ((seconds / 60) * 2.0).round();
     
     if (adjustedMinutes < 1) {
