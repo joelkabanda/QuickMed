@@ -7,15 +7,13 @@ import 'dart:convert';
 
 class LocationService {
   static const double meterToKm = 0.001;
-  static const double avgSpeedKmH = 2.5; // Significantly reduced speed to increase estimated travel time (approx 40m/min)
+  static const double avgSpeedKmH = 2.5;
   static Stream<Position>? _positionStream;
 
-  /// Check if location services are enabled
   static Future<bool> isLocationServiceEnabled() async {
     return await Geolocator.isLocationServiceEnabled();
   }
 
-  /// Request location permissions
   static Future<LocationPermission> requestLocationPermission() async {
     final permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
@@ -24,7 +22,6 @@ class LocationService {
     return permission;
   }
 
-  /// Check current permission status
   static Future<LocationPermission> checkLocationPermission() async {
     return await Geolocator.checkPermission();
   }
