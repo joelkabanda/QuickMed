@@ -72,7 +72,6 @@ class AuthService {
     _currentUser = null;
   }
 
-  // Actual Firebase Password Reset
   Future<bool> resetPassword(String email) async {
     try {
       await _auth.sendPasswordResetEmail(email: email);
