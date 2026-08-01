@@ -1,5 +1,3 @@
-// lib/features/dashboard/screens/dashboard_screen.dart
-//Widgets
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -13,7 +11,6 @@ import '../widgets/reminder_tile.dart';
 import '../widgets/section_title.dart';
 import '../widgets/bottom_nav.dart';
 
-//screens
 import 'add_medication_screen.dart';
 import 'add_reminder_screen.dart';
 import 'reminders_screen.dart';
