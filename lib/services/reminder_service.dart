@@ -205,9 +205,6 @@ class ReminderService {
           repeatDaily: false,
         );
 
-        // Keep the in-app Notifications history synchronized with the
-        // latest route-based trigger time. The screen reveals the record only
-        // after scheduledAt is reached.
         final recordId = '${reminder.id}_${alert.type}';
         await database.saveAppNotification(
           AppNotificationRecord(
@@ -263,10 +260,6 @@ class ReminderService {
     var prepareFastestAt =
         medicationTime.subtract(fastest.duration + preparationWindow);
 
-    // Keep the five alerts in the requested human sequence. On longer walking
-    // routes, the normal fastest-mode preparation threshold can fall after the
-    // walking departure threshold. Move that preparation alert just before the
-    // walking departure so the person first prepares both options, then leaves.
     if (!sameBoundary && !prepareFastestAt.isBefore(leaveSlowestAt)) {
       prepareFastestAt = leaveSlowestAt.subtract(const Duration(minutes: 1));
     }
@@ -386,9 +379,6 @@ class ReminderService {
   static DateTime medicationTimeForReminder(Reminder reminder) {
     if (reminder.medicationTime != null) return reminder.medicationTime!;
 
-    // Generated medication reminders historically stored the time 30 minutes
-    // before the dose. Older manually-created reminders stored the dose time
-    // directly, so preserve both formats during migration.
     if (reminder.id.startsWith('rem_')) {
       return reminder.reminderTime.add(
         const Duration(minutes: defaultLeadTimeMinutes),
@@ -407,8 +397,6 @@ class ReminderService {
     return hash & 0x7FFFFFFF;
   }
 
-  /// Cancels every pending QuickMed alert linked to these medicine
-  /// reminder records. Used when all medication schedules are deleted.
   static Future<void> cancelMedicationNotifications(
     Iterable<Reminder> reminders,
   ) async {
@@ -428,8 +416,6 @@ class ReminderService {
     }
   }
 
-  /// Retained for screens that need one recommendation rather than the full
-  /// five-stage reminder sequence.
   @visibleForTesting
   static TravelEstimate proposeTransport(
     List<TravelEstimate> estimates, {
