@@ -316,7 +316,7 @@ Set this as your default medication destination?''',
                     index: _navIndex,
                     children: [
                       _buildHomeTab(context, savedLocation, medications, reminders),
-                      const MedicationsScreen(), // Using MedicationsScreen as History for now
+                      const MedicationsScreen(),
                       _buildMoreTab(),
                     ],
                   ),
@@ -334,19 +334,16 @@ Set this as your default medication destination?''',
   }
 
   Widget _buildHomeTab(BuildContext context, SavedPharmacyLocation? savedLocation, List<Medication> medications, List<Reminder> reminders) {
-    // Calculate Dashboard Data
     final now = DateTime.now();
     final todayStart = DateTime(now.year, now.month, now.day);
     final todayEnd =
         DateTime(now.year, now.month, now.day, 23, 59, 59);
 
-    // Filter pending reminders (including overdue ones)
     final pendingReminders =
         reminders.where((r) => r.status == ReminderStatus.pending).toList();
     pendingReminders
         .sort((a, b) => a.reminderTime.compareTo(b.reminderTime));
 
-    // The absolute "Next" (or Overdue) dose
     final nextReminder =
         pendingReminders.isNotEmpty ? pendingReminders.first : null;
     Medication? nextMed;
