@@ -58,7 +58,6 @@ class NotificationService {
       );
       debugPrint("NotificationService: Plugin initialized: $initialized");
 
-      // Create the notification channel for Android 8.0+
       const channel = AndroidNotificationChannel(
         'quickmed_reminders',
         'Reminders',
