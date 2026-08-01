@@ -24,7 +24,6 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<void> _checkAuthenticationState() async {
     try {
       debugPrint('Starting auth check...');
-      // Wait a minimum of 2 seconds for better UX
       await Future.delayed(const Duration(seconds: 2));
 
       if (!mounted) return;
@@ -35,7 +34,6 @@ class _SplashScreenState extends State<SplashScreen> {
       if (!mounted) return;
 
       if (user != null) {
-        // User is logged in, check location permission
         debugPrint('User authenticated: ${user.email}');
         await _checkLocationPermission();
       } else {
