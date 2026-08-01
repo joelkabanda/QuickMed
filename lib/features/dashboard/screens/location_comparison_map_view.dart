@@ -307,8 +307,6 @@ class _LocationComparisonMapViewState extends State<LocationComparisonMapView>
       );
     }
 
-    // No duration or time markers are placed on top of the route. Travel times
-    // remain in the information panel below the map.
     return markers;
   }
 
