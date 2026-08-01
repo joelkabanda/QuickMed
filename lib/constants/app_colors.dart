@@ -20,8 +20,6 @@ class AppColors {
   static const Color danger = Color(0xFFD6455A);
   static const Color dangerTint = Color(0xFFFCEAEC);
 
-  // A secondary accent for non-alert, non-primary highlights
-  // (used for Estimations
-  static const Color accent = Color(0xFF0F9B8E); // teal
+  static const Color accent = Color(0xFF0F9B8E);
   static const Color accentTint = Color(0xFFE4F6F4);
 }
