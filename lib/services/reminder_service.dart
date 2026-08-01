@@ -122,12 +122,6 @@ class ReminderService {
     );
   }
 
-  /// Recalculates upcoming reminder thresholds from the latest Google route
-  /// times. The same deterministic notification IDs are reused, so refreshed
-  /// alarms replace older travel-time alarms instead of creating duplicates.
-  ///
-  /// This is called by the live map when Google traffic or the user's position
-  /// changes. It refreshes reminders due in the next 24 hours.
   static Future<void> refreshUpcomingMedicationNotificationsForUser({
     required String userId,
     required String destinationName,
@@ -181,9 +175,6 @@ class ReminderService {
       final now = DateTime.now();
       if (!medicationTime.isAfter(now)) continue;
 
-      // A newly-created sequence clears stale alert IDs. Live route refreshes
-      // keep already-due alarms intact while replacing every future alarm by
-      // scheduling the same deterministic ID again.
       if (persistNotificationRecords) {
         await _cancelManagedAlerts(notifications, reminder.id);
       }
