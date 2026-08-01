@@ -182,22 +182,18 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
   void _calculateEndDate() {
     final quantity = int.tryParse(_quantityController.text);
     
-    // Use the count from schedule times, or fallback to the "times per day" input
     int dosesPerDay = _scheduleTimes.length;
     if (dosesPerDay == 0) {
       dosesPerDay = int.tryParse(_timesPerDayController.text) ?? 0;
     }
 
-    // Try to extract units per dose from dosage string (e.g., "2 tablets" or "1.5 capsules")
     double unitsPerDose = 1.0;
     final dosageText = _dosageController.text.toLowerCase().trim();
     
-    // Look for a number at the start that might be followed by a unit of count
     final countMatch = RegExp(r'^(\d+(\.\d+)?)').firstMatch(dosageText);
     if (countMatch != null) {
       final potentialCount = double.tryParse(countMatch.group(1)!);
       if (potentialCount != null) {
-        // Only use as multiplier if it's a small number or explicitly followed by a count-based unit
         final hasCountUnit = dosageText.contains('tablet') || 
                             dosageText.contains('capsule') || 
                             dosageText.contains('pill') || 
@@ -205,7 +201,6 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                             dosageText.contains('puff') ||
                             dosageText.contains('cap');
         
-        // If it's something like "500mg", don't use 500 as a multiplier (assume 1 unit of 500mg)
         if (hasCountUnit || potentialCount <= 5) {
           unitsPerDose = potentialCount;
         }
@@ -252,7 +247,6 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
       int hour = (currentHour.floor()) % 24;
       int minute = ((currentHour - currentHour.floor()) * 60).round();
 
-      // Ensure minutes don't round up to 60
       if (minute == 60) {
         minute = 0;
         hour = (hour + 1) % 24;
