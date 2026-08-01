@@ -70,7 +70,6 @@ class _SplashScreenState extends State<SplashScreen> {
           ),
         );
       } else {
-        // Permission already granted or in use
         _navigateToDashboard();
       }
     } catch (e) {
@@ -96,7 +95,6 @@ class _SplashScreenState extends State<SplashScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Logo Container
                 Container(
                   height: 120,
                   width: 120,
