@@ -41,7 +41,6 @@ class AuthService {
     }
   }
 
-  // Actual Firebase Login
   Future<bool> loginUser({
     required String email,
     required String password,
@@ -53,7 +52,6 @@ class AuthService {
       );
 
       if (credential.user != null) {
-        // Here you would usually fetch the full profile from Firestore
         _currentUser = User(
           id: credential.user!.uid,
           email: email,
