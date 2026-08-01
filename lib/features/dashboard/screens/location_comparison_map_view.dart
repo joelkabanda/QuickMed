@@ -224,8 +224,6 @@ class _LocationComparisonMapViewState extends State<LocationComparisonMapView>
       final selected = route.id == _selectedRoute?.id;
 
       if (selected) {
-        // A dark outline under the route makes the active path clear against
-        // roads and buildings, while the blue line marks the route to follow.
         result.add(
           Polyline(
             polylineId: PolylineId('${route.id}_outline'),
