@@ -48,10 +48,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String get _username {
     final user = _currentUser;
     if (user?.displayName != null && user!.displayName!.trim().isNotEmpty) {
-      return user.displayName!.split(' ').first; // first name only
+      return user.displayName!.split(' ').first;
     }
     if (user?.email != null) {
-      return user!.email!.split('@').first; // fallback: local part of email
+      return user!.email!.split('@').first;
     }
     return "there";
   }
@@ -67,7 +67,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _loadData();
     _checkPermissions();
 
-    // Auto-update dashboard every minute to refresh "Next Dose" based on current time
     _refreshTimer = Timer.periodic(const Duration(minutes: 1), (_) {
       if (mounted) setState(() {});
     });
@@ -95,7 +94,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     final savedLocation = await _dbService.getSavedPharmacyLocation(userId);
     if (savedLocation == null && mounted) {
-      // If no location saved, we can offer to capture it now
       _showLocationSetupPrompt();
     }
   }
