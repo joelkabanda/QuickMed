@@ -82,7 +82,6 @@ class NotificationService {
       await androidPlugin?.createNotificationChannel(liveRouteChannel);
       debugPrint("NotificationService: Notification channels created");
 
-      // Request permissions for Android 13+
       debugPrint("NotificationService: Requesting notification permissions...");
       final granted = await _plugin
           .resolvePlatformSpecificImplementation<
