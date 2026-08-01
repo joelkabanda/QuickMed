@@ -89,7 +89,6 @@ class NotificationService {
           ?.requestNotificationsPermission();
       debugPrint("NotificationService: Notification permission granted: $granted");
       
-        // Request exact alarm permission for Android 12+
       debugPrint("NotificationService: Requesting exact alarm permissions...");
       final alarmsPlugin = _plugin.resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin>();
