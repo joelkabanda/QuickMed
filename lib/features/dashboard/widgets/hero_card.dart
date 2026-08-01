@@ -1,5 +1,3 @@
-// lib/features/dashboard/widgets/med_wallet_card.dart
-
 import 'package:flutter/material.dart';
 import '../../../constants/app_colors.dart';
 
@@ -51,7 +49,6 @@ class _MedWalletCardState extends State<MedWalletCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Top row — patient identity, mirrors the phone number/name row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -99,7 +96,6 @@ class _MedWalletCardState extends State<MedWalletCard> {
 
           const SizedBox(height: 22),
 
-          // "Balance" row — now the next dose, with a reveal/hide toggle
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
