@@ -426,8 +426,6 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
       final dbService = DatabaseService();
       await dbService.saveMedication(userId, medication);
 
-      // Replace only the reminders linked to this medication. Other medicine
-      // schedules and their notifications must remain untouched.
       final previousReminders = await dbService.getRemindersForMedication(
         userId,
         medication.id,
@@ -448,7 +446,6 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
         await dbService.saveReminder(reminder);
       }
       
-      // Schedule system notifications for all new reminders
       await ReminderService.scheduleMedicationNotifications(
         userId: userId,
         medication: medication,
@@ -508,7 +505,6 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header section
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -571,10 +567,8 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
               _buildCameraCaptureCard(),
               const SizedBox(height: 24),
 
-              // Basic Information Section
               _buildSectionHeader('Basic Information', Icons.info_outline),
               const SizedBox(height: 12),
-              // Medication Name
               _buildTextField(
                 label: 'Medication Name',
                 controller: _nameController,
@@ -584,7 +578,6 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
               ),
               const SizedBox(height: 14),
 
-              // Medication Type
               _buildDropdown(
                 label: 'Type of Medication',
                 value: _selectedType,
@@ -595,17 +588,14 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
               ),
               const SizedBox(height: 14),
 
-              // Dosage Card
               _buildDosageCard(),
               const SizedBox(height: 24),
 
-              // Medication Schedule Section
               _buildSectionHeader('Medication Schedule', Icons.access_time),
               const SizedBox(height: 12),
               _buildScheduleTimesSection(),
               const SizedBox(height: 24),
 
-              // Medical Details Section
               _buildSectionHeader('Medical Details', Icons.local_hospital),
               const SizedBox(height: 12),
 
