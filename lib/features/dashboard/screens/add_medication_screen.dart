@@ -599,7 +599,6 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
               _buildSectionHeader('Medical Details', Icons.local_hospital),
               const SizedBox(height: 12),
 
-              // Purpose/Reason
               _buildTextField(
                 label: 'Purpose (Why taking this medication)',
                 controller: _purposeController,
@@ -608,7 +607,6 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
               ),
               const SizedBox(height: 14),
 
-              // Prescribed By
               _buildTextField(
                 label: 'Prescribed By (Doctor/Pharmacist)',
                 controller: _prescribedByController,
@@ -617,7 +615,6 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
               ),
               const SizedBox(height: 14),
 
-              // Side Effects
               _buildTextField(
                 label: 'Known Side Effects',
                 controller: _sideEffectsController,
@@ -627,11 +624,9 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
               ),
               const SizedBox(height: 24),
 
-              // Dosage & Quantity Section
               _buildSectionHeader('Dosage & Supply', Icons.inventory_2),
               const SizedBox(height: 12),
 
-              // Quantity
               _buildTextField(
                 label: 'Quantity Available',
                 controller: _quantityController,
@@ -641,11 +636,9 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
               ),
               const SizedBox(height: 24),
 
-              // Pharmacy & Notes Section
               _buildSectionHeader('Pharmacy & Notes', Icons.location_on),
               const SizedBox(height: 12),
 
-              // Pharmacy Address (Where to get the medication)
               _buildTextField(
                 label: 'Where to Get Medication',
                 controller: _pharmacyAddressController,
@@ -654,7 +647,6 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
               ),
               const SizedBox(height: 14),
 
-              // Description
               _buildTextField(
                 label: 'Additional Notes',
                 controller: _descriptionController,
@@ -664,11 +656,9 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
               ),
               const SizedBox(height: 24),
 
-              // Duration Section
               _buildSectionHeader('Duration', Icons.calendar_today),
               const SizedBox(height: 12),
 
-              // Start Date
               _buildDateSelector(
                 label: 'Start Date',
                 date: _startDate,
@@ -676,7 +666,6 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
               ),
               const SizedBox(height: 14),
 
-              // End Date
               _buildDateSelector(
                 label: 'End Date (Optional)',
                 date: _endDate,
@@ -692,7 +681,6 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                 ),
               const SizedBox(height: 24),
 
-              // Save Button
               Container(
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
@@ -1084,7 +1072,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
-                  minimumSize: const Size(0, 48), // Match standard TextField height
+                  minimumSize: const Size(0, 48),
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   elevation: 0,
                   shape: RoundedRectangleBorder(
@@ -1092,7 +1080,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                   ),
                 ),
                 child: const Padding(
-                  padding: EdgeInsets.only(bottom: 1), // Optical balance adjustment
+                  padding: EdgeInsets.only(bottom: 1),
                   child: Text(
                     'Auto-Schedule',
                     style: TextStyle(
