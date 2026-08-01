@@ -37,7 +37,6 @@ class _SplashScreenState extends State<SplashScreen> {
         debugPrint('User authenticated: ${user.email}');
         await _checkLocationPermission();
       } else {
-        // User is not logged in, navigate to login
         debugPrint('No user authenticated, navigating to login');
         Navigator.of(context).pushReplacementNamed(AppRoutes.login);
       }
@@ -56,7 +55,6 @@ class _SplashScreenState extends State<SplashScreen> {
       if (!mounted) return;
 
       if (permission == LocationPermission.denied) {
-        // Show location permission dialog
         await showDialog(
           context: context,
           barrierDismissible: false,
