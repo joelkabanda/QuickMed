@@ -114,7 +114,6 @@ class _LocationComparisonMapViewState extends State<LocationComparisonMapView>
       },
     );
 
-    // Traffic-aware travel times are refreshed while this screen is active.
     _trafficRefreshTimer = Timer.periodic(
       const Duration(minutes: 1),
       (_) => _loadRoutePlan(),
@@ -170,8 +169,6 @@ class _LocationComparisonMapViewState extends State<LocationComparisonMapView>
       if (!mounted) return;
       final message = error.toString().replaceFirst('Bad state: ', '');
       setState(() {
-        // Do not remove a valid blue route merely because a later live refresh
-        // encountered a temporary DNS or mobile-network failure.
         if (_routePlan == null) _routeError = message;
       });
     } finally {
