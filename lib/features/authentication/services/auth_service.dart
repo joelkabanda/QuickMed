@@ -10,7 +10,6 @@ class AuthService {
   User? get currentUser => _currentUser;
   bool get isAuthenticated => _auth.currentUser != null;
 
-  // Actual Firebase Registration
   Future<User?> registerUser({
     required String fullName,
     required String email,
@@ -32,7 +31,6 @@ class AuthService {
           createdAt: DateTime.now(),
         );
 
-        // Save to Firestore collection automatically
         await _databaseService.saveUser(_currentUser!);
         return _currentUser;
       }
