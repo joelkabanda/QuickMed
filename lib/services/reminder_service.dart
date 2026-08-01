@@ -46,8 +46,6 @@ class ReminderService {
         final medicationTime =
             DateTime(date.year, date.month, date.day, hour, minute);
         final now = DateTime.now();
-        // The Reminders tab stores and displays only the actual medicine time.
-        // Travel preparation/departure alerts are separate notification records.
         final reminderTime = medicationTime;
 
         if (medicationTime.isBefore(now)) continue;
@@ -112,9 +110,6 @@ class ReminderService {
     );
   }
 
-  /// Refreshes upcoming alerts from the user's current position and the
-  /// latest Google route durations. This is used when the app starts or
-  /// returns to the foreground, even when the map screen is not open.
   static Future<void> refreshUpcomingMedicationNotificationsFromCurrentLocation({
     required String userId,
   }) async {
