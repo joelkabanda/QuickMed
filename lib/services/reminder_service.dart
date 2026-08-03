@@ -1,8 +1,8 @@
 import 'package:flutter/foundation.dart';
+import 'package:quickmed/models/app_notification_model.dart';
 import 'package:quickmed/models/medication_model.dart';
 import 'package:quickmed/models/reminder_model.dart';
 import 'package:quickmed/models/user_profile_model.dart';
-import 'package:quickmed/models/app_notification_model.dart';
 import 'package:quickmed/services/database_service.dart';
 import 'package:quickmed/services/google_routes_service.dart';
 import 'package:quickmed/services/location_service.dart';
@@ -10,6 +10,16 @@ import 'package:quickmed/services/notification_service.dart';
 
 class ReminderService {
   static const int defaultLeadTimeMinutes = 30;
+  static const Duration preparationWindow = Duration(minutes: 30);
+
+  static const List<String> _managedAlertTypes = <String>[
+    'prepare_slowest',
+    'prepare_fastest',
+    'leave_slowest',
+    'leave_fastest',
+    'route_unavailable',
+    'dose',
+  ];
 
   static List<Reminder> buildRemindersForMedication({
     required String userId,
@@ -18,6 +28,7 @@ class ReminderService {
     int daysCount = 7,
     int leadTimeMinutes = defaultLeadTimeMinutes,
   }) {
+    assert(leadTimeMinutes >= 0);
     final start = startDate ?? DateTime.now();
     final reminders = <Reminder>[];
 
@@ -34,13 +45,8 @@ class ReminderService {
 
         final medicationTime =
             DateTime(date.year, date.month, date.day, hour, minute);
-        final plannedReminderTime = medicationTime.subtract(
-          Duration(minutes: leadTimeMinutes),
-        );
         final now = DateTime.now();
-        final reminderTime = plannedReminderTime.isBefore(now)
-            ? now.add(const Duration(seconds: 5))
-            : plannedReminderTime;
+        final reminderTime = medicationTime;
 
         if (medicationTime.isBefore(now)) continue;
         if (medicationTime.isBefore(medication.startDate)) continue;
@@ -59,10 +65,11 @@ class ReminderService {
             userId: userId,
             medicationId: medication.id,
             reminderTime: reminderTime,
+            medicationTime: medicationTime,
             status: ReminderStatus.pending,
             isNotificationSent: false,
             notes:
-                '${medication.name} (${medication.dosage}) is due in $leadTimeMinutes minutes.',
+                '${medication.name} (${medication.dosage}) is due at $timeText.',
             createdAt: DateTime.now(),
           ),
         );
@@ -77,201 +84,377 @@ class ReminderService {
     required Medication medication,
     required List<Reminder> reminders,
     GoogleRoutesService? routesService,
+    List<TravelEstimate>? travelEstimates,
+    String? destinationName,
+    bool persistNotificationRecords = true,
+  }) async {
+    final suppliedEstimates = travelEstimates ?? const <TravelEstimate>[];
+    final suppliedDestination = destinationName?.trim() ?? '';
+    final routeData = suppliedEstimates.isNotEmpty && suppliedDestination.isNotEmpty
+        ? _RouteData(
+            destinationName: suppliedDestination,
+            estimates: suppliedEstimates,
+          )
+        : await _loadRouteDataForUser(
+            userId: userId,
+            medicationDestinationAddress: medication.pharmacyAddress,
+            routesService: routesService,
+          );
+
+    await _scheduleMedicationNotificationsWithRouteData(
+      userId: userId,
+      medication: medication,
+      reminders: reminders,
+      routeData: routeData,
+      persistNotificationRecords: persistNotificationRecords,
+    );
+  }
+
+  static Future<void> refreshUpcomingMedicationNotificationsFromCurrentLocation({
+    required String userId,
+  }) async {
+    final routeData = await _loadRouteDataForUser(userId: userId);
+    if (routeData == null) return;
+    await refreshUpcomingMedicationNotificationsForUser(
+      userId: userId,
+      destinationName: routeData.destinationName,
+      travelEstimates: routeData.estimates,
+    );
+  }
+
+  static Future<void> refreshUpcomingMedicationNotificationsForUser({
+    required String userId,
+    required String destinationName,
+    required List<TravelEstimate> travelEstimates,
+    Duration horizon = const Duration(hours: 24),
+  }) async {
+    if (travelEstimates.isEmpty) return;
+
+    try {
+      final database = DatabaseService();
+      final medications = await database.getUserMedications(userId);
+      final reminders = await database.getUserReminders(userId);
+      final now = DateTime.now();
+      final limit = now.add(horizon);
+
+      for (final medication in medications.where((item) => item.isActive)) {
+        final upcoming = reminders.where((reminder) {
+          if (reminder.medicationId != medication.id) return false;
+          final medicationTime = medicationTimeForReminder(reminder);
+          return medicationTime.isAfter(now) && !medicationTime.isAfter(limit);
+        }).toList();
+        if (upcoming.isEmpty) continue;
+
+        await scheduleMedicationNotifications(
+          userId: userId,
+          medication: medication,
+          reminders: upcoming,
+          travelEstimates: travelEstimates,
+          destinationName: destinationName,
+          persistNotificationRecords: false,
+        );
+      }
+    } catch (error) {
+      debugPrint('Could not refresh live route reminders: $error');
+    }
+  }
+
+  static Future<void> _scheduleMedicationNotificationsWithRouteData({
+    required String userId,
+    required Medication medication,
+    required List<Reminder> reminders,
+    required _RouteData? routeData,
+    required bool persistNotificationRecords,
   }) async {
     final notifications = NotificationService();
     final database = DatabaseService();
-    final routeData = await _loadRouteDataForUser(
-      userId: userId,
-      medicationDestinationAddress: medication.pharmacyAddress,
-      routesService: routesService,
-    );
+    await notifications.init();
 
     for (final reminder in reminders) {
-      final medicationTime = reminder.reminderTime.add(
-        const Duration(minutes: defaultLeadTimeMinutes),
-      );
+      final medicationTime = medicationTimeForReminder(reminder);
       final now = DateTime.now();
       if (!medicationTime.isAfter(now)) continue;
 
-      final events = <_ScheduledAlert>[];
-
-      if (routeData != null && routeData.estimates.isNotEmpty) {
-        final ordered = [...routeData.estimates]
-          ..sort((a, b) => a.duration.compareTo(b.duration));
-        final fastest = ordered.first;
-        final slowest = ordered.last;
-
-        // 1) Preparation alert: 30 minutes before the patient must leave
-        // using the slowest available means of transport.
-        final slowestPrepareAt = medicationTime
-            .subtract(slowest.duration)
-            .subtract(const Duration(minutes: 30));
-        if (slowestPrepareAt.isAfter(now)) {
-          events.add(_ScheduledAlert(
-            time: slowestPrepareAt,
-            title: 'Prepare for your medication journey',
-            body: _travelBody(
-              medication: medication,
-              routeData: routeData,
-              notificationTime: slowestPrepareAt,
-              message: 'Your medication is approaching. In 30 minutes, start '
-                  'travelling by ${slowest.mode.label} so you can reach the destination on time.',
-            ),
-            type: 'slowest_prepare',
-          ));
-        }
-
-        // 2) Preparation alert: 30 minutes before the patient must leave
-        // using the fastest available means of transport.
-        final fastestPrepareAt = medicationTime
-            .subtract(fastest.duration)
-            .subtract(const Duration(minutes: 30));
-        if (fastestPrepareAt.isAfter(now)) {
-          events.add(_ScheduledAlert(
-            time: fastestPrepareAt,
-            title: 'Get ready to travel',
-            body: _travelBody(
-              medication: medication,
-              routeData: routeData,
-              notificationTime: fastestPrepareAt,
-              message: 'If you plan to use the quickest option, get ready  '
-                  'In 30 minutes, you should start travelling by ${fastest.mode.label}.',
-            ),
-            type: 'fastest_prepare',
-          ));
-        }
-
-        // 3) Leave-now alert when time remaining equals the slowest journey.
-        final slowestLeaveAt = medicationTime.subtract(slowest.duration);
-        if (slowestLeaveAt.isAfter(now)) {
-          events.add(_ScheduledAlert(
-            time: slowestLeaveAt,
-            title: 'Start moving now',
-            body: _travelBody(
-              medication: medication,
-              routeData: routeData,
-              notificationTime: slowestLeaveAt,
-              message: 'It is time to start moving by ${slowest.mode.label}. '
-                  'The journey takes ${slowest.durationText}, which now matches the time left before your medication.',
-            ),
-            type: 'slowest_departure',
-          ));
-        }
-
-        // 4) Escalation alert at the latest safe departure time using the
-        // fastest available means. This is scheduled as the fallback when the
-        // earlier reminder has not led to departure.
-        final fastestLeaveAt = medicationTime.subtract(fastest.duration);
-        if (fastestLeaveAt.isAfter(now)) {
-          events.add(_ScheduledAlert(
-            time: fastestLeaveAt,
-            title: 'Use the quickest transport now',
-            body: _travelBody(
-              medication: medication,
-              routeData: routeData,
-              notificationTime: fastestLeaveAt,
-              message: 'You are at the latest safe departure time. Move to '
-                  '${routeData.destinationName} now using ${fastest.mode.label} '
-                  '(${fastest.durationText}).',
-            ),
-            type: 'fastest_departure',
-          ));
-        }
-      } else {
-        // Route data is required for the first four reminder stages. If it is
-        // unavailable, keep a single preparation alert rather than creating
-        // misleading travel-time notifications.
-        final fallbackAt = medicationTime.subtract(const Duration(minutes: 30));
-        if (fallbackAt.isAfter(now)) {
-          events.add(_ScheduledAlert(
-            time: fallbackAt,
-            title: 'Medication due in 30 minutes',
-            body: '${medication.name} (${medication.dosage}) is due in 30 minutes. '
-                'Open QuickMed to refresh your destination and travel times.',
-            type: 'route_unavailable',
-          ));
-        }
+      if (persistNotificationRecords) {
+        await _cancelManagedAlerts(notifications, reminder.id);
       }
 
-      // 5) Final medication alert. Per the requested format, this one does not
-      // include travel details.
-      events.add(_ScheduledAlert(
-        time: medicationTime,
-        title: 'Take ${medication.name} now',
-        body: '${medication.name} (${medication.dosage}) is due now.',
-        type: 'dose',
-      ));
+      final alerts = routeData != null && routeData.estimates.isNotEmpty
+          ? buildTravelReminderAlerts(
+              medicationTime: medicationTime,
+              medicationName: medication.name,
+              medicationDosage: medication.dosage,
+              destinationName: routeData.destinationName,
+              estimates: routeData.estimates,
+              now: now,
+            )
+          : buildFallbackReminderAlerts(
+              medicationTime: medicationTime,
+              medicationName: medication.name,
+              medicationDosage: medication.dosage,
+              now: now,
+            );
 
-      events.sort((a, b) => a.time.compareTo(b.time));
-      final unique = <String, _ScheduledAlert>{};
-      for (final event in events) {
-        // If two rules resolve to the same instant, keep both only when their
-        // purpose differs; their IDs remain deterministic.
-        final key = '${event.time.millisecondsSinceEpoch}_${event.type}';
-        unique[key] = event;
-      }
-
-      final scheduled = <({String id, int numericId, _ScheduledAlert event})>[];
-      var index = 0;
-      for (final event in unique.values) {
-        final id = '${reminder.id}_${event.type}_${event.time.millisecondsSinceEpoch}';
-        final numericId = (id.hashCode + index++) & 0x7fffffff;
-        scheduled.add((id: id, numericId: numericId, event: event));
-      }
-
-      int? fastestEscalationId;
-      for (final item in scheduled) {
-        if (item.event.type == 'fastest_departure') {
-          fastestEscalationId = item.numericId;
-          break;
-        }
-      }
-
-      for (final item in scheduled) {
-        final canConfirmMovement = fastestEscalationId != null &&
-            item.event.type != 'fastest_departure' &&
-            item.event.type != 'dose';
+      for (final alert in alerts) {
+        final numericId = stableNotificationId('${reminder.id}:${alert.type}');
         await notifications.scheduleNotification(
-          id: item.numericId,
-          title: item.event.title,
-          body: item.event.body,
-          scheduledDate: item.event.time,
+          id: numericId,
+          title: alert.title,
+          body: alert.body,
+          scheduledDate: alert.time,
           repeatDaily: false,
-          payload: canConfirmMovement ? 'cancel:$fastestEscalationId' : null,
-          showMovingAction: canConfirmMovement,
         );
-        await database.saveAppNotification(AppNotificationRecord(
-          id: item.id,
-          userId: userId,
-          title: item.event.title,
-          body: item.event.body,
-          scheduledAt: item.event.time,
-          createdAt: DateTime.now(),
-          type: item.event.type,
-        ));
+
+        final recordId = '${reminder.id}_${alert.type}';
+        await database.saveAppNotification(
+          AppNotificationRecord(
+            id: recordId,
+            userId: userId,
+            title: alert.title,
+            body: alert.body,
+            scheduledAt: alert.time,
+            createdAt: DateTime.now(),
+            type: alert.type,
+          ),
+        );
       }
     }
   }
 
-  static String _travelBody({
-    required Medication medication,
-    required _RouteData routeData,
-    required DateTime notificationTime,
-    required String message,
+  @visibleForTesting
+  static List<MedicationTravelAlert> buildTravelReminderAlerts({
+    required DateTime medicationTime,
+    required String medicationName,
+    required String medicationDosage,
+    required String destinationName,
+    required List<TravelEstimate> estimates,
+    DateTime? now,
   }) {
-    return '$message\n'
-        'Medication: ${medication.name} (${medication.dosage})\n'
-        '${routeData.summary}\n'
-        'Notification time: ${_formatDateTime(notificationTime)}';
+    final current = now ?? DateTime.now();
+    final usable = estimates
+        .where((item) => item.duration.inSeconds > 0)
+        .toList()
+      ..sort((a, b) => a.duration.compareTo(b.duration));
+
+    if (usable.isEmpty) {
+      return buildFallbackReminderAlerts(
+        medicationTime: medicationTime,
+        medicationName: medicationName,
+        medicationDosage: medicationDosage,
+        now: current,
+      );
+    }
+
+    final fastest = usable.first;
+    final walkingOptions = usable
+        .where((item) => item.mode == TravelMode.walking)
+        .toList()
+      ..sort((a, b) => b.duration.compareTo(a.duration));
+    final slowest = walkingOptions.isNotEmpty ? walkingOptions.first : usable.last;
+    final sameBoundary = fastest.duration == slowest.duration;
+
+    final prepareSlowestAt =
+        medicationTime.subtract(slowest.duration + preparationWindow);
+    final leaveSlowestAt = medicationTime.subtract(slowest.duration);
+    final leaveFastestAt = medicationTime.subtract(fastest.duration);
+    var prepareFastestAt =
+        medicationTime.subtract(fastest.duration + preparationWindow);
+
+    if (!sameBoundary && !prepareFastestAt.isBefore(leaveSlowestAt)) {
+      prepareFastestAt = leaveSlowestAt.subtract(const Duration(minutes: 1));
+    }
+    if (!sameBoundary && !prepareFastestAt.isAfter(prepareSlowestAt)) {
+      prepareFastestAt = prepareSlowestAt.add(const Duration(minutes: 1));
+    }
+
+    final alerts = <MedicationTravelAlert>[];
+
+    void addAlert(MedicationTravelAlert alert) {
+      if (!alert.time.isAfter(current)) return;
+      alerts.add(alert);
+    }
+
+    addAlert(
+      MedicationTravelAlert(
+        time: prepareSlowestAt,
+        title: slowest.mode == TravelMode.walking
+            ? 'Prepare to walk for your medicine'
+            : 'Prepare for the slower journey',
+        body: 'If you will use ${slowest.mode.label} to $destinationName, '
+            'finish what you are doing now. Prepare for 30 minutes, then '
+            'start your journey. Travel time: ${slowest.durationText}.',
+        type: 'prepare_slowest',
+      ),
+    );
+
+    if (!sameBoundary) {
+      addAlert(
+        MedicationTravelAlert(
+          time: prepareFastestAt,
+          title: 'Prepare for the quickest journey',
+          body: 'Prepare now for ${fastest.mode.label}, the quickest '
+              'current option to $destinationName for $medicationName. '
+              'QuickMed will remind you again when it is time to leave. '
+              'Travel time: ${fastest.durationText}.',
+          type: 'prepare_fastest',
+        ),
+      );
+    }
+
+    addAlert(
+      MedicationTravelAlert(
+        time: leaveSlowestAt,
+        title: slowest.mode == TravelMode.walking
+            ? 'Start walking now'
+            : 'Start the slower journey now',
+        body: 'Start moving now using ${slowest.mode.label} so you reach '
+            '$destinationName by the medicine time. Travel time: '
+            '${slowest.durationText}.',
+        type: 'leave_slowest',
+      ),
+    );
+
+    if (!sameBoundary) {
+      addAlert(
+        MedicationTravelAlert(
+          time: leaveFastestAt,
+          title: 'Start the quickest journey now',
+          body: 'Leave now using ${fastest.mode.label}, the quickest current '
+              'option to $destinationName. Travel time: '
+              '${fastest.durationText}.',
+          type: 'leave_fastest',
+        ),
+      );
+    }
+
+    addAlert(
+      MedicationTravelAlert(
+        time: medicationTime,
+        title: 'Take $medicationName now',
+        body: '$medicationName ($medicationDosage) is due now.',
+        type: 'dose',
+      ),
+    );
+
+    alerts.sort((a, b) => a.time.compareTo(b.time));
+    return alerts;
   }
 
-  static String _formatDateTime(DateTime value) {
-    final hour = value.hour == 0 ? 12 : (value.hour > 12 ? value.hour - 12 : value.hour);
-    final minute = value.minute.toString().padLeft(2, '0');
-    final period = value.hour >= 12 ? 'PM' : 'AM';
-    final day = value.day.toString().padLeft(2, '0');
-    final month = value.month.toString().padLeft(2, '0');
-    return '$day/$month/${value.year} $hour:$minute $period';
+  @visibleForTesting
+  static List<MedicationTravelAlert> buildFallbackReminderAlerts({
+    required DateTime medicationTime,
+    required String medicationName,
+    required String medicationDosage,
+    DateTime? now,
+  }) {
+    final current = now ?? DateTime.now();
+    final alerts = <MedicationTravelAlert>[];
+    final routeRefreshAt = medicationTime.subtract(preparationWindow);
+
+    if (routeRefreshAt.isAfter(current)) {
+      alerts.add(
+        MedicationTravelAlert(
+          time: routeRefreshAt,
+          title: 'Route update needed',
+          body: 'Open QuickMed to refresh the current travel time before '
+              'leaving for $medicationName.',
+          type: 'route_unavailable',
+        ),
+      );
+    }
+    if (medicationTime.isAfter(current)) {
+      alerts.add(
+        MedicationTravelAlert(
+          time: medicationTime,
+          title: 'Take $medicationName now',
+          body: '$medicationName ($medicationDosage) is due now.',
+          type: 'dose',
+        ),
+      );
+    }
+    return alerts;
+  }
+
+  @visibleForTesting
+  static DateTime medicationTimeForReminder(Reminder reminder) {
+    if (reminder.medicationTime != null) return reminder.medicationTime!;
+
+    if (reminder.id.startsWith('rem_')) {
+      return reminder.reminderTime.add(
+        const Duration(minutes: defaultLeadTimeMinutes),
+      );
+    }
+    return reminder.reminderTime;
+  }
+
+  @visibleForTesting
+  static int stableNotificationId(String value) {
+    var hash = 0x811C9DC5;
+    for (final unit in value.codeUnits) {
+      hash ^= unit;
+      hash = (hash * 0x01000193) & 0xFFFFFFFF;
+    }
+    return hash & 0x7FFFFFFF;
+  }
+
+  static Future<void> cancelMedicationNotifications(
+    Iterable<Reminder> reminders,
+  ) async {
+    final notifications = NotificationService();
+    await notifications.init();
+    for (final reminder in reminders) {
+      await _cancelManagedAlerts(notifications, reminder.id);
+    }
+  }
+
+  static Future<void> _cancelManagedAlerts(
+    NotificationService notifications,
+    String reminderId,
+  ) async {
+    for (final type in _managedAlertTypes) {
+      await notifications.cancel(stableNotificationId('$reminderId:$type'));
+    }
+  }
+
+  @visibleForTesting
+  static TravelEstimate proposeTransport(
+    List<TravelEstimate> estimates, {
+    required Duration timeAvailable,
+  }) {
+    if (estimates.isEmpty) {
+      throw ArgumentError.value(estimates, 'estimates', 'Must not be empty');
+    }
+
+    const preference = <TravelMode>[
+      TravelMode.walking,
+      TravelMode.bicycling,
+      TravelMode.transit,
+      TravelMode.driving,
+      TravelMode.twoWheeler,
+    ];
+    const arrivalBuffer = Duration(minutes: 5);
+
+    for (final mode in preference) {
+      final candidates = estimates.where((item) => item.mode == mode).toList()
+        ..sort((a, b) => a.duration.compareTo(b.duration));
+      if (candidates.isEmpty) continue;
+      final candidate = candidates.first;
+      if (candidate.duration + arrivalBuffer <= timeAvailable) {
+        return candidate;
+      }
+    }
+
+    final fastest = [...estimates]
+      ..sort((a, b) => a.duration.compareTo(b.duration));
+    return fastest.first;
+  }
+
+  @visibleForTesting
+  static String proposedTravelNotificationLine(
+    String destination,
+    TravelEstimate estimate,
+  ) {
+    return '${estimate.mode.label}: ${estimate.durationText} to $destination';
   }
 
   static Future<_RouteData?> _loadRouteDataForUser({
@@ -299,7 +482,6 @@ class ReminderService {
       return _RouteData(
         destinationName: destination.name,
         estimates: estimates,
-        summary: formatRouteSummary(destination.name, estimates),
       );
     } catch (error) {
       debugPrint('Could not prepare travel-aware reminders: $error');
@@ -333,7 +515,11 @@ class ReminderService {
       if (estimates.isEmpty) {
         return 'Destination: ${destination.name}';
       }
-      return formatRouteSummary(destination.name, estimates);
+      final proposed = proposeTransport(
+        estimates,
+        timeAvailable: const Duration(minutes: defaultLeadTimeMinutes),
+      );
+      return proposedTravelNotificationLine(destination.name, proposed);
     } catch (error) {
       debugPrint('Could not add Google Maps travel estimates: $error');
       return null;
@@ -376,6 +562,20 @@ class ReminderService {
   }
 }
 
+class MedicationTravelAlert {
+  const MedicationTravelAlert({
+    required this.time,
+    required this.title,
+    required this.body,
+    required this.type,
+  });
+
+  final DateTime time;
+  final String title;
+  final String body;
+  final String type;
+}
+
 class _ReminderDestination {
   const _ReminderDestination({
     required this.name,
@@ -388,27 +588,12 @@ class _ReminderDestination {
   final double longitude;
 }
 
-
 class _RouteData {
   const _RouteData({
     required this.destinationName,
     required this.estimates,
-    required this.summary,
   });
+
   final String destinationName;
   final List<TravelEstimate> estimates;
-  final String summary;
-}
-
-class _ScheduledAlert {
-  const _ScheduledAlert({
-    required this.time,
-    required this.title,
-    required this.body,
-    required this.type,
-  });
-  final DateTime time;
-  final String title;
-  final String body;
-  final String type;
 }

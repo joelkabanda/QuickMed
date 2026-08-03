@@ -3,6 +3,7 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <uses-permission android:name="android.permission.VIBRATE" />
@@ -15,6 +16,11 @@
         android:icon="@mipmap/ic_launcher">
         <meta-data
             android:name="com.google.android.geo.API_KEY"
+            android:value="AIzaSyBtFieZf6AHlR9qbdOWkuiLrjRFBlEclKc" />
+        <!-- Optional separate web-service key for Google Routes/Directions.
+             It may be configured independently from the Android Maps SDK key. -->
+        <meta-data
+            android:name="com.example.quickmed.ROUTES_API_KEY"
             android:value="AIzaSyBtFieZf6AHlR9qbdOWkuiLrjRFBlEclKc" />
         <activity
             android:name=".MainActivity"

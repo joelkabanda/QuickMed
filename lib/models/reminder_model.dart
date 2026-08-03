@@ -7,6 +7,7 @@ class Reminder {
   final String userId;
   final String medicationId;
   final DateTime reminderTime;
+  final DateTime? medicationTime;
   final ReminderStatus status;
   final String? notificationId;
   final bool isNotificationSent;
@@ -19,6 +20,7 @@ class Reminder {
     required this.userId,
     required this.medicationId,
     required this.reminderTime,
+    this.medicationTime,
     required this.status,
     this.notificationId,
     required this.isNotificationSent,
@@ -33,6 +35,9 @@ class Reminder {
       userId: map['userId'] ?? '',
       medicationId: map['medicationId'] ?? '',
       reminderTime: DateTime.parse(map['reminderTime'] ?? DateTime.now().toIso8601String()),
+      medicationTime: map['medicationTime'] != null
+          ? DateTime.parse(map['medicationTime'])
+          : null,
       status: ReminderStatus.values.firstWhere(
         (e) => e.toString().split('.').last == (map['status'] ?? 'pending'),
         orElse: () => ReminderStatus.pending,
@@ -51,6 +56,7 @@ class Reminder {
       'userId': userId,
       'medicationId': medicationId,
       'reminderTime': reminderTime.toIso8601String(),
+      'medicationTime': medicationTime?.toIso8601String(),
       'status': status.toString().split('.').last,
       'notificationId': notificationId,
       'isNotificationSent': isNotificationSent,
@@ -68,6 +74,7 @@ class Reminder {
     String? userId,
     String? medicationId,
     DateTime? reminderTime,
+    DateTime? medicationTime,
     ReminderStatus? status,
     String? notificationId,
     bool? isNotificationSent,
@@ -80,6 +87,7 @@ class Reminder {
       userId: userId ?? this.userId,
       medicationId: medicationId ?? this.medicationId,
       reminderTime: reminderTime ?? this.reminderTime,
+      medicationTime: medicationTime ?? this.medicationTime,
       status: status ?? this.status,
       notificationId: notificationId ?? this.notificationId,
       isNotificationSent: isNotificationSent ?? this.isNotificationSent,

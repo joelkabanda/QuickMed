@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart' as geocoding;
@@ -6,15 +7,13 @@ import 'dart:convert';
 
 class LocationService {
   static const double meterToKm = 0.001;
-  static const double avgSpeedKmH = 2.5; // Significantly reduced speed to increase estimated travel time (approx 40m/min)
+  static const double avgSpeedKmH = 2.5;
   static Stream<Position>? _positionStream;
 
-  /// Check if location services are enabled
   static Future<bool> isLocationServiceEnabled() async {
     return await Geolocator.isLocationServiceEnabled();
   }
 
-  /// Request location permissions
   static Future<LocationPermission> requestLocationPermission() async {
     final permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
@@ -23,49 +22,73 @@ class LocationService {
     return permission;
   }
 
-  /// Check current permission status
   static Future<LocationPermission> checkLocationPermission() async {
     return await Geolocator.checkPermission();
   }
 
-  /// Get current user location
   static Future<Position> getCurrentLocation() async {
+    final permission = await checkLocationPermission();
+    if (permission == LocationPermission.deniedForever) {
+      throw Exception(
+        'Location permissions are permanently denied. Enable location access '
+        'for QuickMed in Android settings.',
+      );
+    }
+
+    if (permission == LocationPermission.denied) {
+      final newPermission = await requestLocationPermission();
+      if (newPermission == LocationPermission.denied ||
+          newPermission == LocationPermission.deniedForever) {
+        throw Exception('Location permission was denied.');
+      }
+    }
+
+    final isEnabled = await isLocationServiceEnabled();
+    if (!isEnabled) {
+      throw Exception(
+        'Location services are disabled. Turn on Location, then try again.',
+      );
+    }
+
+    Position? lastKnown;
     try {
-      final permission = await checkLocationPermission();
-      if (permission == LocationPermission.deniedForever) {
-        throw Exception('Location permissions are permanently denied. Please enable in app settings.');
-      }
+      lastKnown = await Geolocator.getLastKnownPosition();
+    } catch (_) {
+    }
 
-      if (permission == LocationPermission.denied) {
-        final newPermission = await requestLocationPermission();
-        if (newPermission == LocationPermission.denied ||
-            newPermission == LocationPermission.deniedForever) {
-          throw Exception('Location permission denied by user.');
-        }
-      }
-
-      final isEnabled = await isLocationServiceEnabled();
-      if (!isEnabled) {
-        throw Exception('Location services are disabled on your device. Please enable them in settings.');
-      }
-
+    try {
       return await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 10),
+        timeLimit: const Duration(seconds: 18),
       );
-    } catch (e) {
-      throw Exception('Failed to get location: $e');
+    } on TimeoutException {
+      if (lastKnown != null) return lastKnown;
+    } catch (error) {
+      if (lastKnown != null) return lastKnown;
+    }
+
+    try {
+      return await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.medium,
+        timeLimit: const Duration(seconds: 20),
+      );
+    } on TimeoutException {
+      throw Exception(
+        'The phone could not obtain a GPS position. Move near a window or '
+        'outdoors, keep Location enabled, and tap Retry.',
+      );
+    } catch (error) {
+      throw Exception('Failed to get location: $error');
     }
   }
 
-  /// Calculate distance between two points in kilometers
   static double calculateDistance(
     double lat1,
     double lon1,
     double lat2,
     double lon2,
   ) {
-    const double radiusOfEarth = 6371; // Radius of the earth in km
+    const double radiusOfEarth = 6371;
     final double latDistance = _degreesToRadians(lat2 - lat1);
     final double lonDistance = _degreesToRadians(lon2 - lon1);
     final double a = sin(latDistance / 2) * sin(latDistance / 2) +
@@ -77,12 +100,10 @@ class LocationService {
     return radiusOfEarth * c;
   }
 
-  /// Calculate estimated time to reach destination in minutes
   static int calculateEstimatedTimeMinutes(double distanceKm) {
     return ((distanceKm / avgSpeedKmH) * 60).ceil();
   }
 
-  /// Calculate both distance and estimated time
   static Map<String, dynamic> calculateDistanceAndTime(
     double userLat,
     double userLon,
@@ -109,7 +130,6 @@ class LocationService {
     }
   }
 
-  /// Get address from coordinates
   static Future<String> getAddressFromCoordinates(
     double latitude,
     double longitude,
@@ -127,7 +147,6 @@ class LocationService {
     }
   }
 
-  /// Get coordinates from address
   static Future<List<geocoding.Location>> getCoordinatesFromAddress(
     String address,
   ) async {
@@ -157,7 +176,6 @@ class LocationService {
     }
   }
 
-  /// Get real-time position stream for continuous location tracking
   static Stream<Position> getPositionStream({
     int distanceFilter = 10,
     int intervalDuration = 1000,
@@ -166,12 +184,10 @@ class LocationService {
       locationSettings: LocationSettings(
         accuracy: LocationAccuracy.high,
         distanceFilter: distanceFilter,
-        timeLimit: const Duration(seconds: 10),
       ),
     );
   }
 
-  /// Calculate distance and time together
   static Future<Map<String, dynamic>> calculateDistanceAndTimeAsync(
     double userLat,
     double userLon,
@@ -181,7 +197,6 @@ class LocationService {
     return calculateDistanceAndTime(userLat, userLon, destLat, destLon);
   }
 
-  /// Get route coordinates from OSRM (Open Source Routing Machine)
   static Future<List<Map<String, double>>> getRouteCoordinates(
     double startLat,
     double startLon,
@@ -196,7 +211,6 @@ class LocationService {
     }
   }
 
-  /// Get route details including distance and duration
   static Future<Map<String, dynamic>> getRouteDetails(
     double startLat,
     double startLon,
@@ -210,7 +224,6 @@ class LocationService {
     }
   }
 
-  /// Get full route information including coordinates, distance, and duration
   static Future<Map<String, dynamic>> getFullRouteInfo(
     double startLat,
     double startLon,
@@ -262,8 +275,6 @@ class LocationService {
   }
 
   static String _formatDurationText(int seconds) {
-    // We add a 100% buffer (multiplier of 2.0) to OSRM's raw 5km/h duration 
-    // to reflect a much slower 2.5km/h walking pace and account for city delays.
     final adjustedMinutes = ((seconds / 60) * 2.0).round();
     
     if (adjustedMinutes < 1) {

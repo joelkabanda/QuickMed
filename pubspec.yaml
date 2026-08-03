@@ -2,7 +2,7 @@ name: quickmed
 description: A new Flutter project.
 publish_to: 'none'
 
-version: 1.0.0+1
+version: 1.0.1+2
 
 environment:
   sdk: ^3.0.0
@@ -16,9 +16,7 @@ dependencies:
   geolocator: ^10.0.0
   permission_handler: ^12.0.3
   geocoding: ^2.1.0
-  flutter_map: ^6.1.0
-  latlong2: ^0.9.1
-  map_launcher: ^3.4.0
+  google_maps_flutter: ^2.18.0
   http: ^1.1.0
   path_provider: ^2.1.0
   flutter_local_notifications: ^17.0.0
