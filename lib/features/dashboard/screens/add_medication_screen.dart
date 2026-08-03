@@ -8,7 +8,6 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:quickmed/models/medication_model.dart';
 import 'package:quickmed/services/database_service.dart';
 import 'package:quickmed/services/reminder_service.dart';
-import 'package:quickmed/services/notification_service.dart';
 import 'package:quickmed/constants/app_colors.dart';
 
 class AddMedicationScreen extends StatefulWidget {
@@ -183,22 +182,18 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
   void _calculateEndDate() {
     final quantity = int.tryParse(_quantityController.text);
     
-    // Use the count from schedule times, or fallback to the "times per day" input
     int dosesPerDay = _scheduleTimes.length;
     if (dosesPerDay == 0) {
       dosesPerDay = int.tryParse(_timesPerDayController.text) ?? 0;
     }
 
-    // Try to extract units per dose from dosage string (e.g., "2 tablets" or "1.5 capsules")
     double unitsPerDose = 1.0;
     final dosageText = _dosageController.text.toLowerCase().trim();
     
-    // Look for a number at the start that might be followed by a unit of count
     final countMatch = RegExp(r'^(\d+(\.\d+)?)').firstMatch(dosageText);
     if (countMatch != null) {
       final potentialCount = double.tryParse(countMatch.group(1)!);
       if (potentialCount != null) {
-        // Only use as multiplier if it's a small number or explicitly followed by a count-based unit
         final hasCountUnit = dosageText.contains('tablet') || 
                             dosageText.contains('capsule') || 
                             dosageText.contains('pill') || 
@@ -206,7 +201,6 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                             dosageText.contains('puff') ||
                             dosageText.contains('cap');
         
-        // If it's something like "500mg", don't use 500 as a multiplier (assume 1 unit of 500mg)
         if (hasCountUnit || potentialCount <= 5) {
           unitsPerDose = potentialCount;
         }
@@ -253,7 +247,6 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
       int hour = (currentHour.floor()) % 24;
       int minute = ((currentHour - currentHour.floor()) * 60).round();
 
-      // Ensure minutes don't round up to 60
       if (minute == 60) {
         minute = 0;
         hour = (hour + 1) % 24;
@@ -433,11 +426,16 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
       final dbService = DatabaseService();
       await dbService.saveMedication(userId, medication);
 
-      // Remove every reminder and scheduled notification created by the older
-      // reminder format before generating the new travel-aware sequence.
-      await NotificationService().cancelAll();
-      await dbService.deleteAllReminders(userId);
-      await dbService.deleteAllAppNotifications(userId);
+      final previousReminders = await dbService.getRemindersForMedication(
+        userId,
+        medication.id,
+      );
+      await ReminderService.cancelMedicationNotifications(previousReminders);
+      await dbService.deleteRemindersForMedication(userId, medication.id);
+      await dbService.deleteAppNotificationsForReminderIds(
+        userId,
+        previousReminders.map((item) => item.id),
+      );
 
       final generatedReminders = ReminderService.buildRemindersForMedication(
         userId: userId,
@@ -448,7 +446,6 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
         await dbService.saveReminder(reminder);
       }
       
-      // Schedule system notifications for all new reminders
       await ReminderService.scheduleMedicationNotifications(
         userId: userId,
         medication: medication,
@@ -458,9 +455,8 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
       if (mounted) {
         String scheduleMsg = 'Medication added.';
         if (generatedReminders.isNotEmpty) {
-          final firstTime = generatedReminders.first.reminderTime;
-          final timeStr = "${firstTime.hour.toString().padLeft(2, '0')}:${firstTime.minute.toString().padLeft(2, '0')}";
-          scheduleMsg += " Reminder sequence created from $timeStr using the new travel-aware format.";
+          scheduleMsg +=
+              ' The five-stage travel-aware reminder sequence was created.';
         }
 
         ScaffoldMessenger.of(context).showSnackBar(
@@ -509,7 +505,6 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header section
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -572,10 +567,8 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
               _buildCameraCaptureCard(),
               const SizedBox(height: 24),
 
-              // Basic Information Section
               _buildSectionHeader('Basic Information', Icons.info_outline),
               const SizedBox(height: 12),
-              // Medication Name
               _buildTextField(
                 label: 'Medication Name',
                 controller: _nameController,
@@ -585,7 +578,6 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
               ),
               const SizedBox(height: 14),
 
-              // Medication Type
               _buildDropdown(
                 label: 'Type of Medication',
                 value: _selectedType,
@@ -596,21 +588,17 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
               ),
               const SizedBox(height: 14),
 
-              // Dosage Card
               _buildDosageCard(),
               const SizedBox(height: 24),
 
-              // Medication Schedule Section
               _buildSectionHeader('Medication Schedule', Icons.access_time),
               const SizedBox(height: 12),
               _buildScheduleTimesSection(),
               const SizedBox(height: 24),
 
-              // Medical Details Section
               _buildSectionHeader('Medical Details', Icons.local_hospital),
               const SizedBox(height: 12),
 
-              // Purpose/Reason
               _buildTextField(
                 label: 'Purpose (Why taking this medication)',
                 controller: _purposeController,
@@ -619,7 +607,6 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
               ),
               const SizedBox(height: 14),
 
-              // Prescribed By
               _buildTextField(
                 label: 'Prescribed By (Doctor/Pharmacist)',
                 controller: _prescribedByController,
@@ -628,7 +615,6 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
               ),
               const SizedBox(height: 14),
 
-              // Side Effects
               _buildTextField(
                 label: 'Known Side Effects',
                 controller: _sideEffectsController,
@@ -638,11 +624,9 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
               ),
               const SizedBox(height: 24),
 
-              // Dosage & Quantity Section
               _buildSectionHeader('Dosage & Supply', Icons.inventory_2),
               const SizedBox(height: 12),
 
-              // Quantity
               _buildTextField(
                 label: 'Quantity Available',
                 controller: _quantityController,
@@ -652,11 +636,9 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
               ),
               const SizedBox(height: 24),
 
-              // Pharmacy & Notes Section
               _buildSectionHeader('Pharmacy & Notes', Icons.location_on),
               const SizedBox(height: 12),
 
-              // Pharmacy Address (Where to get the medication)
               _buildTextField(
                 label: 'Where to Get Medication',
                 controller: _pharmacyAddressController,
@@ -665,7 +647,6 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
               ),
               const SizedBox(height: 14),
 
-              // Description
               _buildTextField(
                 label: 'Additional Notes',
                 controller: _descriptionController,
@@ -675,11 +656,9 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
               ),
               const SizedBox(height: 24),
 
-              // Duration Section
               _buildSectionHeader('Duration', Icons.calendar_today),
               const SizedBox(height: 12),
 
-              // Start Date
               _buildDateSelector(
                 label: 'Start Date',
                 date: _startDate,
@@ -687,7 +666,6 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
               ),
               const SizedBox(height: 14),
 
-              // End Date
               _buildDateSelector(
                 label: 'End Date (Optional)',
                 date: _endDate,
@@ -703,7 +681,6 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                 ),
               const SizedBox(height: 24),
 
-              // Save Button
               Container(
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
@@ -1095,7 +1072,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
-                  minimumSize: const Size(0, 48), // Match standard TextField height
+                  minimumSize: const Size(0, 48),
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   elevation: 0,
                   shape: RoundedRectangleBorder(
@@ -1103,7 +1080,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                   ),
                 ),
                 child: const Padding(
-                  padding: EdgeInsets.only(bottom: 1), // Optical balance adjustment
+                  padding: EdgeInsets.only(bottom: 1),
                   child: Text(
                     'Auto-Schedule',
                     style: TextStyle(

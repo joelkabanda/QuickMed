@@ -24,7 +24,6 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<void> _checkAuthenticationState() async {
     try {
       debugPrint('Starting auth check...');
-      // Wait a minimum of 2 seconds for better UX
       await Future.delayed(const Duration(seconds: 2));
 
       if (!mounted) return;
@@ -35,11 +34,9 @@ class _SplashScreenState extends State<SplashScreen> {
       if (!mounted) return;
 
       if (user != null) {
-        // User is logged in, check location permission
         debugPrint('User authenticated: ${user.email}');
         await _checkLocationPermission();
       } else {
-        // User is not logged in, navigate to login
         debugPrint('No user authenticated, navigating to login');
         Navigator.of(context).pushReplacementNamed(AppRoutes.login);
       }
@@ -58,7 +55,6 @@ class _SplashScreenState extends State<SplashScreen> {
       if (!mounted) return;
 
       if (permission == LocationPermission.denied) {
-        // Show location permission dialog
         await showDialog(
           context: context,
           barrierDismissible: false,
@@ -74,7 +70,6 @@ class _SplashScreenState extends State<SplashScreen> {
           ),
         );
       } else {
-        // Permission already granted or in use
         _navigateToDashboard();
       }
     } catch (e) {
@@ -100,7 +95,6 @@ class _SplashScreenState extends State<SplashScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Logo Container
                 Container(
                   height: 120,
                   width: 120,

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:quickmed/models/medication_model.dart';
 import 'package:quickmed/services/database_service.dart';
+import 'package:quickmed/services/reminder_service.dart';
+import 'package:quickmed/services/notification_service.dart';
 import 'package:quickmed/routes/app_routes.dart';
 import 'package:quickmed/constants/app_colors.dart';
 import 'dart:io';
@@ -19,6 +21,7 @@ class MedicationsScreen extends StatefulWidget {
 class _MedicationsScreenState extends State<MedicationsScreen> {
   late DatabaseService _dbService;
   late Future<List<Medication>> _medicationsFuture;
+  bool _isDeletingAll = false;
 
   @override
   void initState() {
@@ -61,7 +64,17 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
 
     if (confirmed == true) {
       try {
+        final linkedReminders = await _dbService.getRemindersForMedication(
+          userId,
+          medicationId,
+        );
+        await ReminderService.cancelMedicationNotifications(linkedReminders);
         await _dbService.deleteMedication(userId, medicationId);
+        await _dbService.deleteRemindersForMedication(userId, medicationId);
+        await _dbService.deleteAppNotificationsForReminderIds(
+          userId,
+          linkedReminders.map((item) => item.id),
+        );
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Medication deleted successfully')),
@@ -77,6 +90,71 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
           );
         }
       }
+    }
+  }
+
+  Future<void> _deleteAllMedications() async {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null || _isDeletingAll) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        icon: const Icon(
+          Icons.delete_forever_rounded,
+          color: AppColors.danger,
+          size: 36,
+        ),
+        title: const Text('Delete all medications?'),
+        content: const Text(
+          'This will permanently remove every medication, medicine reminder, '
+          'and scheduled travel notification from QuickMed.',
+          textAlign: TextAlign.center,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Keep medications'),
+          ),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            onPressed: () => Navigator.pop(context, true),
+            icon: const Icon(Icons.delete_forever_rounded),
+            label: const Text('Delete all'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() => _isDeletingAll = true);
+    try {
+      final reminders = await _dbService.getUserReminders(userId);
+      await ReminderService.cancelMedicationNotifications(reminders);
+      await NotificationService().cancelAll();
+      final deleted = await _dbService.deleteAllMedications(userId);
+      await _dbService.deleteAllReminders(userId);
+      await _dbService.deleteAllAppNotifications(userId);
+
+      if (!mounted) return;
+      setState(_loadMedications);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            deleted == 1
+                ? '1 medication and its reminders were deleted.'
+                : '$deleted medications and their reminders were deleted.',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Unable to delete medications: $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isDeletingAll = false);
     }
   }
 
@@ -449,6 +527,167 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
     );
   }
 
+  Widget _buildOverviewHeader(List<Medication> medications) {
+    final activeCount = medications.where((item) => item.isActive).length;
+    final doseCount = medications.fold<int>(
+      0,
+      (total, item) => total + item.scheduleTimes.length,
+    );
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 10),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF0D47A1), Color(0xFF1976D2)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withOpacity(.22),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(.16),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(
+                  Icons.medication_liquid_rounded,
+                  color: Colors.white,
+                  size: 28,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Your medicine plan',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    SizedBox(height: 3),
+                    Text(
+                      'Manage doses, schedules and pharmacy details',
+                      style: TextStyle(color: Colors.white70, fontSize: 12.5),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(
+                child: _overviewMetric(
+                  value: '$activeCount',
+                  label: 'Active medicines',
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _overviewMetric(
+                  value: '$doseCount',
+                  label: 'Daily dose times',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: () {
+                    Navigator.of(context)
+                        .pushNamed(AppRoutes.addMedication)
+                        .then((_) => setState(_loadMedications));
+                  },
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: AppColors.primary,
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  icon: const Icon(Icons.add_rounded),
+                  label: const Text(
+                    'Add medication',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              IconButton.filledTonal(
+                tooltip: 'Delete all medications',
+                onPressed: _isDeletingAll ? null : _deleteAllMedications,
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.white.withOpacity(.16),
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(48, 48),
+                ),
+                icon: _isDeletingAll
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.delete_sweep_rounded),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _overviewMetric({required String value, required String label}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(.12),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withOpacity(.14)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 22,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -469,9 +708,9 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
           PopupMenuButton<String>(
             onSelected: (value) {
               if (value == 'export') {
-                _medicationsFuture.then((meds) {
-                  _exportMedications(meds);
-                });
+                _medicationsFuture.then(_exportMedications);
+              } else if (value == 'delete_all') {
+                _deleteAllMedications();
               }
             },
             icon: const Icon(Icons.more_vert, color: AppColors.textPrimary),
@@ -483,6 +722,17 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
                     Icon(Icons.download, size: 18, color: AppColors.primary),
                     SizedBox(width: 8),
                     Text('Export Data'),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem<String>(
+                value: 'delete_all',
+                child: Row(
+                  children: [
+                    Icon(Icons.delete_sweep_rounded, size: 18, color: AppColors.danger),
+                    SizedBox(width: 8),
+                    Text('Delete All Medications', style: TextStyle(color: AppColors.danger)),
                   ],
                 ),
               ),
@@ -620,70 +870,7 @@ class _MedicationsScreenState extends State<MedicationsScreen> {
           return ListView(
             padding: const EdgeInsets.symmetric(vertical: 8),
             children: [
-              Padding(
-                padding:
-                    const EdgeInsets.fromLTRB(16, 16, 16, 16),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '${medications.length} Active',
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                        Text(
-                          'Medication${medications.length != 1 ? 's' : ''}',
-                          style:
-                              const TextStyle(fontSize: 13, color: AppColors.textSecondary),
-                        ),
-                      ],
-                    ),
-                    ElevatedButton(
-                      onPressed: () {
-                        Navigator.of(context)
-                            .pushNamed(AppRoutes.addMedication)
-                            .then((_) {
-                          setState(() {
-                            _loadMedications();
-                          });
-                        });
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.white,
-                        minimumSize: const Size(0, 40),
-                        padding: const EdgeInsets.symmetric(horizontal: 14),
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.add_rounded, size: 18),
-                          SizedBox(width: 6),
-                          Padding(
-                            padding: EdgeInsets.only(bottom: 1), // Optical adjustment
-                            child: Text(
-                              'Add New',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              _buildOverviewHeader(medications),
               ...medications.map((med) => _buildMedicationScheduleCard(med)),
               const SizedBox(height: 20),
             ],

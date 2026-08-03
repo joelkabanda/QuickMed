@@ -4,9 +4,7 @@ import 'dart:async';
 import 'package:quickmed/constants/app_colors.dart';
 import 'package:quickmed/models/reminder_model.dart';
 import 'package:quickmed/services/database_service.dart';
-import 'package:quickmed/services/notification_service.dart';
-import 'package:quickmed/services/location_service.dart';
-import 'package:quickmed/routes/app_routes.dart';
+import 'package:quickmed/services/reminder_service.dart';
 import 'package:intl/intl.dart';
 
 class RemindersScreen extends StatefulWidget {
@@ -19,7 +17,6 @@ class RemindersScreen extends StatefulWidget {
 class _RemindersScreenState extends State<RemindersScreen> {
   late DatabaseService _dbService;
   late Stream<List<Reminder>> _remindersStream;
-  final Set<String> _notifiedReminders = {};
   Timer? _refreshTimer;
 
   @override
@@ -27,7 +24,6 @@ class _RemindersScreenState extends State<RemindersScreen> {
     super.initState();
     _dbService = DatabaseService();
     _loadReminders();
-    NotificationService().init();
     _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (mounted) setState(() {});
     });
@@ -48,7 +44,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
     }
   }
 
-  Future<void> _deleteReminder(String reminderId) async {
+  Future<void> _deleteReminder(Reminder reminder) async {
     final userId = FirebaseAuth.instance.currentUser?.uid;
     if (userId == null) return;
 
@@ -70,7 +66,12 @@ class _RemindersScreenState extends State<RemindersScreen> {
 
     if (confirmed == true) {
       try {
-        await _dbService.deleteReminder(userId, reminderId);
+        await ReminderService.cancelMedicationNotifications([reminder]);
+        await _dbService.deleteAppNotificationsForReminderIds(
+          userId,
+          [reminder.id],
+        );
+        await _dbService.deleteReminder(userId, reminder.id);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Reminder deleted')),
@@ -87,16 +88,20 @@ class _RemindersScreenState extends State<RemindersScreen> {
   }
 
   String _getReminderTitle(Reminder reminder) {
-    if (reminder.notes != null && reminder.notes!.contains('Scheduled for')) {
-      final match = RegExp(r'Scheduled for (.+) at').firstMatch(reminder.notes!);
+    final notes = reminder.notes?.trim() ?? '';
+    if (notes.contains('Scheduled for')) {
+      final match = RegExp(r'Scheduled for (.+) at').firstMatch(notes);
       if (match != null) return match.group(1)!.trim();
     }
+    final dosageStart = notes.indexOf(' (');
+    if (dosageStart > 0) return notes.substring(0, dosageStart).trim();
     return 'Medication Reminder';
   }
 
   Widget _buildReminderCard(Reminder reminder) {
     final now = DateTime.now();
-    final isOverdue = reminder.reminderTime.isBefore(now) && reminder.status == ReminderStatus.pending;
+    final medicineTime = ReminderService.medicationTimeForReminder(reminder);
+    final isOverdue = medicineTime.isBefore(now) && reminder.status == ReminderStatus.pending;
     final isTaken = reminder.status == ReminderStatus.taken;
 
     Color statusColor = AppColors.primary;
@@ -158,7 +163,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                           const Icon(Icons.access_time_rounded, size: 14, color: AppColors.textSecondary),
                           const SizedBox(width: 6),
                           Text(
-                            DateFormat('EEEE, MMM d • h:mm a').format(reminder.reminderTime),
+                            DateFormat('EEEE, MMM d • h:mm a').format(medicineTime),
                             style: const TextStyle(
                               color: AppColors.textSecondary,
                               fontSize: 13,
@@ -185,7 +190,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
               ),
               IconButton(
                 icon: const Icon(Icons.delete_outline_rounded, color: AppColors.danger, size: 22),
-                onPressed: () => _deleteReminder(reminder.id),
+                onPressed: () => _deleteReminder(reminder),
               ),
               const SizedBox(width: 8),
             ],
@@ -213,29 +218,6 @@ class _RemindersScreenState extends State<RemindersScreen> {
     );
   }
 
-  Future<void> _maybeTriggerLocationNotifications(List<Reminder> reminders) async {
-    try {
-      final userId = FirebaseAuth.instance.currentUser?.uid;
-      if (userId == null) return;
-      final savedLocation = await DatabaseService().getSavedPharmacyLocation(userId);
-      if (savedLocation == null) return;
-      final position = await LocationService.getCurrentLocation();
-      final distanceKm = LocationService.calculateDistance(position.latitude, position.longitude, savedLocation.latitude, savedLocation.longitude);
-      if (distanceKm <= 1.5) {
-        final upcoming = reminders.where((r) => r.reminderTime.isAfter(DateTime.now()));
-        for (final r in upcoming) {
-          if (_notifiedReminders.contains(r.id)) continue;
-          await NotificationService().showNotification(
-            id: r.id.hashCode & 0x7fffffff,
-            title: _getReminderTitle(r),
-            body: r.notes ?? 'Time to take your medication',
-          );
-          _notifiedReminders.add(r.id);
-        }
-      }
-    } catch (e) {}
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -244,16 +226,11 @@ class _RemindersScreenState extends State<RemindersScreen> {
         backgroundColor: AppColors.surface,
         elevation: 0,
         title: const Text(
-          'Health Reminders',
+          'Medicine Reminders',
           style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold),
         ),
         centerTitle: false,
         iconTheme: const IconThemeData(color: AppColors.textPrimary),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => Navigator.of(context).pushNamed(AppRoutes.addReminder),
-        backgroundColor: AppColors.primary,
-        child: const Icon(Icons.add, color: Colors.white),
       ),
       body: StreamBuilder<List<Reminder>>(
         stream: _remindersStream,
@@ -263,8 +240,6 @@ class _RemindersScreenState extends State<RemindersScreen> {
           }
 
           final reminders = snapshot.data ?? [];
-          _maybeTriggerLocationNotifications(reminders);
-
           if (reminders.isEmpty) {
             return Center(
               child: Column(
@@ -278,12 +253,41 @@ class _RemindersScreenState extends State<RemindersScreen> {
             );
           }
 
-          reminders.sort((a, b) => b.reminderTime.compareTo(a.reminderTime));
+          reminders.sort((a, b) => ReminderService.medicationTimeForReminder(b).compareTo(ReminderService.medicationTimeForReminder(a)));
 
-          return ListView.builder(
-            padding: const EdgeInsets.symmetric(vertical: 20),
-            itemCount: reminders.length,
-            itemBuilder: (context, index) => _buildReminderCard(reminders[index]),
+          return ListView(
+            padding: const EdgeInsets.only(top: 16, bottom: 24),
+            children: [
+              Container(
+                margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(.08),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: AppColors.primary.withOpacity(.16)),
+                ),
+                child: const Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.schedule_rounded, color: AppColors.primary),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'This page shows medicine dose times only. Journey '
+                        'preparation and departure alerts appear in Notifications '
+                        'when their actual trigger time is reached.',
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          height: 1.4,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              ...reminders.map(_buildReminderCard),
+            ],
           );
         },
       ),

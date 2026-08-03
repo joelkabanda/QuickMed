@@ -4,7 +4,6 @@ import 'package:quickmed/constants/app_colors.dart';
 import 'package:quickmed/models/reminder_model.dart';
 import 'package:quickmed/services/database_service.dart';
 import 'package:quickmed/services/reminder_service.dart';
-import 'package:quickmed/services/notification_service.dart';
 
 class AddReminderScreen extends StatefulWidget {
   const AddReminderScreen({super.key});
@@ -58,55 +57,38 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
       final userId = FirebaseAuth.instance.currentUser?.uid;
       if (userId == null) throw Exception('User not authenticated');
 
+      final medicationId = _medicationIdController.text.trim();
+      final medication =
+          await DatabaseService().getMedication(userId, medicationId);
+      if (medication == null) {
+        throw Exception('No medication was found for that medication ID.');
+      }
+
       final id = DateTime.now().millisecondsSinceEpoch.toString();
+      final medicationTime = _reminderTime!;
       final reminder = Reminder(
         id: id,
         userId: userId,
-        medicationId: _medicationIdController.text.trim(),
-        reminderTime: _reminderTime!,
+        medicationId: medicationId,
+        // Reminder records store the actual medicine time. Route travel
+        // alerts are scheduled separately in the Notifications history.
+        reminderTime: medicationTime,
+        medicationTime: medicationTime,
         status: _status,
         notificationId: null,
         isNotificationSent: false,
+        notes: _notesController.text.trim().isEmpty
+            ? null
+            : _notesController.text.trim(),
         createdAt: DateTime.now(),
       );
 
-      // Save to Firestore first
       await DatabaseService().saveReminder(reminder);
-
-      final notificationDate = reminder.reminderTime.subtract(
-        const Duration(minutes: ReminderService.defaultLeadTimeMinutes),
-      );
-      final routeSummary =
-          await ReminderService.buildLocationRouteSummaryForUser(
+      await ReminderService.scheduleMedicationNotifications(
         userId: userId,
+        medication: medication,
+        reminders: <Reminder>[reminder],
       );
-
-      // Schedule exactly 30 minutes before the selected medication time.
-      try {
-        if (notificationDate.isAfter(DateTime.now())) {
-          final notifId = id.hashCode & 0x7fffffff;
-          final medicationText = _notesController.text.isNotEmpty
-              ? _notesController.text
-              : 'Medication is due in 30 minutes.';
-          final body = [
-            medicationText,
-            if (routeSummary != null) routeSummary,
-          ].join('\n');
-          await NotificationService().scheduleNotification(
-            id: notifId,
-            title: 'Medication due in 30 minutes',
-            body: body,
-            scheduledDate: notificationDate,
-            repeatDaily: false,
-          );
-
-          // update reminder with notification id
-          final updated = reminder.copyWith(notificationId: notifId.toString());
-          await DatabaseService().saveReminder(updated);
-        }
-      } catch (e) {
-        // scheduling failed - continue silently
-      }
       if (mounted) {
         Navigator.of(context).pop(true);
       }
@@ -130,12 +112,6 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
     _medicationIdController.dispose();
     _notesController.dispose();
     super.dispose();
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    NotificationService().init();
   }
 
   @override
@@ -164,7 +140,7 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
               ),
             ),
             const SizedBox(height: 20),
-            const Text('Reminder Time',
+            const Text('Medication Time',
                 style: TextStyle(fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
             GestureDetector(
@@ -181,7 +157,7 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
                 child: Text(
                   _reminderTime != null
                       ? '${_reminderTime!.year}-${_reminderTime!.month.toString().padLeft(2, '0')}-${_reminderTime!.day.toString().padLeft(2, '0')} ${_reminderTime!.hour.toString().padLeft(2, '0')}:${_reminderTime!.minute.toString().padLeft(2, '0')}'
-                      : 'Select reminder date and time',
+                      : 'Select the time the medicine is due',
                   style: TextStyle(
                     color: _reminderTime != null
                         ? AppColors.textPrimary

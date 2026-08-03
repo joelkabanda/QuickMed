@@ -10,7 +10,6 @@ class AuthService {
   User? get currentUser => _currentUser;
   bool get isAuthenticated => _auth.currentUser != null;
 
-  // Actual Firebase Registration
   Future<User?> registerUser({
     required String fullName,
     required String email,
@@ -32,7 +31,6 @@ class AuthService {
           createdAt: DateTime.now(),
         );
 
-        // Save to Firestore collection automatically
         await _databaseService.saveUser(_currentUser!);
         return _currentUser;
       }
@@ -43,7 +41,6 @@ class AuthService {
     }
   }
 
-  // Actual Firebase Login
   Future<bool> loginUser({
     required String email,
     required String password,
@@ -55,7 +52,6 @@ class AuthService {
       );
 
       if (credential.user != null) {
-        // Here you would usually fetch the full profile from Firestore
         _currentUser = User(
           id: credential.user!.uid,
           email: email,
@@ -76,7 +72,6 @@ class AuthService {
     _currentUser = null;
   }
 
-  // Actual Firebase Password Reset
   Future<bool> resetPassword(String email) async {
     try {
       await _auth.sendPasswordResetEmail(email: email);

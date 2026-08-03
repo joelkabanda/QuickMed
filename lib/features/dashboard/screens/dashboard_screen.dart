@@ -1,5 +1,3 @@
-// lib/features/dashboard/screens/dashboard_screen.dart
-//Widgets
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -13,7 +11,6 @@ import '../widgets/reminder_tile.dart';
 import '../widgets/section_title.dart';
 import '../widgets/bottom_nav.dart';
 
-//screens
 import 'add_medication_screen.dart';
 import 'add_reminder_screen.dart';
 import 'reminders_screen.dart';
@@ -51,10 +48,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String get _username {
     final user = _currentUser;
     if (user?.displayName != null && user!.displayName!.trim().isNotEmpty) {
-      return user.displayName!.split(' ').first; // first name only
+      return user.displayName!.split(' ').first;
     }
     if (user?.email != null) {
-      return user!.email!.split('@').first; // fallback: local part of email
+      return user!.email!.split('@').first;
     }
     return "there";
   }
@@ -70,7 +67,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _loadData();
     _checkPermissions();
 
-    // Auto-update dashboard every minute to refresh "Next Dose" based on current time
     _refreshTimer = Timer.periodic(const Duration(minutes: 1), (_) {
       if (mounted) setState(() {});
     });
@@ -98,7 +94,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     final savedLocation = await _dbService.getSavedPharmacyLocation(userId);
     if (savedLocation == null && mounted) {
-      // If no location saved, we can offer to capture it now
       _showLocationSetupPrompt();
     }
   }
@@ -321,7 +316,7 @@ Set this as your default medication destination?''',
                     index: _navIndex,
                     children: [
                       _buildHomeTab(context, savedLocation, medications, reminders),
-                      const MedicationsScreen(), // Using MedicationsScreen as History for now
+                      const MedicationsScreen(),
                       _buildMoreTab(),
                     ],
                   ),
@@ -339,19 +334,16 @@ Set this as your default medication destination?''',
   }
 
   Widget _buildHomeTab(BuildContext context, SavedPharmacyLocation? savedLocation, List<Medication> medications, List<Reminder> reminders) {
-    // Calculate Dashboard Data
     final now = DateTime.now();
     final todayStart = DateTime(now.year, now.month, now.day);
     final todayEnd =
         DateTime(now.year, now.month, now.day, 23, 59, 59);
 
-    // Filter pending reminders (including overdue ones)
     final pendingReminders =
         reminders.where((r) => r.status == ReminderStatus.pending).toList();
     pendingReminders
         .sort((a, b) => a.reminderTime.compareTo(b.reminderTime));
 
-    // The absolute "Next" (or Overdue) dose
     final nextReminder =
         pendingReminders.isNotEmpty ? pendingReminders.first : null;
     Medication? nextMed;
